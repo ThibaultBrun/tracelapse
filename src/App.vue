@@ -173,6 +173,19 @@ const availableWidgets = computed(() =>
         </section>
 
         <section class="group">
+          <h4>3D terrain</h4>
+          <label class="check">
+            <input type="checkbox" v-model="state.render.terrain3d" /> Enable 3D relief
+          </label>
+          <template v-if="state.render.terrain3d">
+            <label class="row"><span>Tilt</span><b class="val">{{ state.render.pitch }}°</b></label>
+            <input type="range" min="0" max="80" step="1" v-model.number="state.render.pitch" />
+            <label class="row"><span>Relief boost</span><b class="val">{{ state.render.terrainExaggeration.toFixed(1) }}×</b></label>
+            <input type="range" min="1" max="3" step="0.1" v-model.number="state.render.terrainExaggeration" />
+          </template>
+        </section>
+
+        <section class="group">
           <h4>Data widgets</h4>
           <div class="presets">
             <button v-for="p in WIDGET_PRESETS" :key="p.label" @click="applyPreset(p.widgets)">{{ p.label }}</button>

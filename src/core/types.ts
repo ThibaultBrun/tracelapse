@@ -114,6 +114,12 @@ export interface RenderConfig {
   title: string
   showTitle: boolean
   units: 'metric' | 'imperial'
+  /** 3D terrain (tilted camera + DEM relief). */
+  terrain3d: boolean
+  /** Camera pitch in degrees when terrain3d is on. */
+  pitch: number
+  /** DEM vertical exaggeration. */
+  terrainExaggeration: number
 }
 
 export interface TimelineConfig {

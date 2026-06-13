@@ -1,136 +1,186 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { state } from '../store'
-import { Renderer } from '../core/renderer'
+import { MapScene } from '../core/mapscene'
 import { Timeline } from '../core/timeline'
+import { drawOverlay, type OverlayCtx } from '../core/overlay'
 import { exportVideo, type ExportProgress } from '../core/exporter'
 import { fmtDuration } from '../core/widgets'
 
-const canvasRef = ref<HTMLCanvasElement | null>(null)
-const renderer = shallowRef<Renderer | null>(null)
+const viewport = ref<HTMLDivElement | null>(null)
+const surface = ref<HTMLDivElement | null>(null)
+const mapEl = ref<HTMLDivElement | null>(null)
+const overlayEl = ref<HTMLCanvasElement | null>(null)
+const scale = ref(1)
+
+const scene = shallowRef<MapScene | null>(null)
 const timeline = shallowRef<Timeline | null>(null)
+let overlayCtx: CanvasRenderingContext2D | null = null
 
 const playing = ref(false)
+const ready = ref(false)
 const videoTime = ref(0)
+const duration = ref(0)
+const effSpeed = ref(0)
 const exporting = ref(false)
 const exportMsg = ref('')
 const exportRatio = ref(0)
 const cancelSignal = { cancelled: false }
-
 let rafId = 0
 let lastTs = 0
 
-const duration = computed(() => timeline.value?.videoDuration ?? 0)
-const effSpeed = computed(() => Math.round(timeline.value?.effectiveSpeed ?? 0))
-
-function rebuild() {
-  const act = state.activity
-  const cv = canvasRef.value
-  if (!act || !cv) {
-    renderer.value = null
-    timeline.value = null
-    return
-  }
-  const tl = new Timeline(act, state.timeline)
-  const rd = new Renderer(cv, act, state.render, tl)
-  // Refresh a paused preview as async tiles arrive (playback drives its own loop).
-  rd.onTileLoad = () => {
-    if (!playing.value) rd.renderAt(videoTime.value)
-  }
-  timeline.value = tl
-  renderer.value = rd
-  if (videoTime.value > tl.videoDuration) videoTime.value = 0
-  rd.renderAt(videoTime.value)
+function fitScale() {
+  const vp = viewport.value
+  if (!vp) return
+  scale.value = Math.min(vp.clientWidth / state.render.width, vp.clientHeight / state.render.height)
 }
 
-// Rebuild renderer when the activity changes.
+function overlayResize() {
+  const c = overlayEl.value
+  if (!c) return
+  c.width = state.render.width
+  c.height = state.render.height
+  overlayCtx = c.getContext('2d')
+}
+
+function drawOv() {
+  if (overlayCtx && scene.value && timeline.value) {
+    drawOverlay(overlayCtx, ovCtx(), videoTime.value)
+  }
+}
+
+function ovCtx(): OverlayCtx {
+  return {
+    act: state.activity!,
+    cfg: state.render,
+    timeline: timeline.value!,
+    attribution: scene.value!.attribution,
+  }
+}
+
+function refreshMeta() {
+  if (!timeline.value) return
+  duration.value = timeline.value.videoDuration
+  effSpeed.value = Math.round(timeline.value.effectiveSpeed)
+}
+
+async function rebuild() {
+  stop()
+  ready.value = false
+  scene.value?.destroy()
+  scene.value = null
+  const act = state.activity
+  if (!act || !mapEl.value) return
+  overlayResize()
+  fitScale()
+  const tl = new Timeline(act, state.timeline)
+  const sc = new MapScene(mapEl.value, act, state.render, tl)
+  timeline.value = tl
+  scene.value = sc
+  refreshMeta()
+  await sc.ready
+  videoTime.value = 0
+  sc.seek(0)
+  drawOv()
+  ready.value = true
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__tl = { scene: sc, timeline: tl }
+}
+
 watch(() => state.activity, rebuild)
 
-// Reconfigure on render-config change (keep current frame).
+watch(
+  () => [state.render.width, state.render.height],
+  () => {
+    overlayResize()
+    fitScale()
+    scene.value?.resize()
+    scene.value?.seek(videoTime.value)
+    drawOv()
+  },
+)
+
 watch(
   () => ({ ...state.render }),
   () => {
-    if (!renderer.value) {
-      rebuild()
-      return
-    }
-    renderer.value.setConfig(state.render)
-    renderer.value.renderAt(videoTime.value)
+    if (!scene.value || !ready.value) return
+    scene.value.setConfig(state.render)
+    scene.value.seek(videoTime.value)
+    drawOv()
   },
   { deep: true },
 )
 
-// Rebuild timeline on timeline-config change.
 watch(
   () => ({ ...state.timeline }),
   () => {
     const act = state.activity
-    if (!act || !renderer.value) return
+    if (!act || !scene.value || !ready.value) return
     const tl = new Timeline(act, state.timeline)
     timeline.value = tl
-    renderer.value.setTimeline(tl)
+    scene.value.setTimeline(tl)
+    refreshMeta()
     if (videoTime.value > tl.videoDuration) videoTime.value = tl.videoDuration
-    renderer.value.renderAt(videoTime.value)
+    scene.value.seek(videoTime.value)
+    drawOv()
   },
   { deep: true },
 )
 
 function tick(ts: number) {
-  if (!playing.value || !timeline.value || !renderer.value) return
+  if (!playing.value || !timeline.value || !scene.value) return
   if (!lastTs) lastTs = ts
-  const dt = (ts - lastTs) / 1000
+  videoTime.value += (ts - lastTs) / 1000
   lastTs = ts
-  videoTime.value += dt
   if (videoTime.value >= timeline.value.videoDuration) {
     videoTime.value = timeline.value.videoDuration
-    renderer.value.renderAt(videoTime.value)
+    scene.value.seek(videoTime.value)
+    drawOv()
     stop()
     return
   }
-  renderer.value.renderAt(videoTime.value)
+  scene.value.seek(videoTime.value)
+  drawOv()
   rafId = requestAnimationFrame(tick)
 }
 
 function play() {
-  if (!timeline.value) return
+  if (!timeline.value || !ready.value) return
   if (videoTime.value >= timeline.value.videoDuration) videoTime.value = 0
   playing.value = true
   lastTs = 0
   rafId = requestAnimationFrame(tick)
 }
-
 function stop() {
   playing.value = false
   cancelAnimationFrame(rafId)
 }
-
 function toggle() {
   playing.value ? stop() : play()
 }
-
 function onScrub(e: Event) {
   stop()
   videoTime.value = Number((e.target as HTMLInputElement).value)
-  renderer.value?.renderAt(videoTime.value)
+  scene.value?.seek(videoTime.value)
+  drawOv()
 }
 
 async function doExport() {
-  if (!renderer.value || !timeline.value) return
+  if (!scene.value || !timeline.value || !state.activity) return
   stop()
   exporting.value = true
   cancelSignal.cancelled = false
   videoTime.value = 0
   try {
     const blob = await exportVideo(
-      renderer.value,
+      scene.value,
       timeline.value,
-      state.render.mapStyleId,
-      state.render.fps,
+      state.activity,
+      state.render,
       (p: ExportProgress) => {
         exportRatio.value = p.ratio
         exportMsg.value =
-          p.phase === 'tiles'
-            ? `Loading map tiles… ${Math.round(p.ratio * 100)}%`
+          p.phase === 'warmup'
+            ? `Loading map & terrain… ${Math.round(p.ratio * 100)}%`
             : p.phase === 'recording'
               ? `Recording… ${Math.round(p.ratio * 100)}%`
               : 'Finalising…'
@@ -149,168 +199,127 @@ async function doExport() {
     exportMsg.value = (e as Error).message === 'cancelled' ? 'Cancelled' : `Error: ${(e as Error).message}`
   } finally {
     exporting.value = false
-    renderer.value?.renderAt(videoTime.value)
+    scene.value?.seek(videoTime.value)
+    drawOv()
   }
 }
-
 function cancelExport() {
   cancelSignal.cancelled = true
 }
 
-onBeforeUnmount(stop)
-defineExpose({ rebuild })
+let ro: ResizeObserver | null = null
+onMounted(() => {
+  ro = new ResizeObserver(fitScale)
+  if (viewport.value) ro.observe(viewport.value)
+  if (state.activity) rebuild()
+})
+onBeforeUnmount(() => {
+  stop()
+  ro?.disconnect()
+  scene.value?.destroy()
+})
 </script>
 
 <template>
   <div class="stage">
-    <div class="canvas-wrap" :style="{ aspectRatio: `${state.render.width} / ${state.render.height}` }">
-      <canvas ref="canvasRef" class="canvas" />
-      <div v-if="!state.activity" class="empty-hint">Drop a GPX/TCX file to begin</div>
-    </div>
-
-    <div v-if="state.activity" class="transport">
-      <button class="play" @click="toggle">{{ playing ? '❚❚' : '▶' }}</button>
-      <input
-        class="scrub"
-        type="range"
-        min="0"
-        :max="duration"
-        step="0.01"
-        :value="videoTime"
-        @input="onScrub"
-      />
-      <span class="time">{{ fmtDuration(videoTime) }} / {{ fmtDuration(duration) }}</span>
-    </div>
-
-    <div v-if="state.activity" class="export-bar">
-      <div class="meta">
-        <span>⏱ {{ duration.toFixed(1) }}s video</span>
-        <span>· {{ effSpeed }}× real time</span>
-        <span>· {{ state.render.fps }} fps</span>
-        <span>· {{ state.render.width }}×{{ state.render.height }}</span>
+    <div class="viewport" ref="viewport">
+      <div
+        class="surface"
+        ref="surface"
+        :style="{
+          width: state.render.width + 'px',
+          height: state.render.height + 'px',
+          transform: `translate(-50%, -50%) scale(${scale})`,
+        }"
+      >
+        <div class="map" ref="mapEl" />
+        <canvas class="overlay" ref="overlayEl" />
+        <div v-if="state.activity && !ready" class="loading">Loading 3D terrain…</div>
       </div>
-      <button v-if="!exporting" class="export" @click="doExport">⬇ Export video (.webm)</button>
-      <template v-else>
+      <div v-if="!state.activity" class="empty-hint">Drop a GPX/TCX file or try the demo</div>
+    </div>
+
+    <template v-if="state.activity">
+      <div class="transport">
+        <button class="play" @click="toggle">{{ playing ? '❚❚' : '▶' }}</button>
+        <input class="scrub" type="range" min="0" :max="duration" step="0.01" :value="videoTime" @input="onScrub" />
+        <span class="time">{{ fmtDuration(videoTime) }} / {{ fmtDuration(duration) }}</span>
+      </div>
+
+      <div class="export-bar">
+        <div class="meta">
+          <span>⏱ {{ duration.toFixed(1) }}s</span>
+          <span>· {{ effSpeed }}× real time</span>
+          <span>· {{ state.render.fps }} fps</span>
+          <span>· {{ state.render.width }}×{{ state.render.height }}</span>
+          <span>· {{ state.render.terrain3d ? '3D' : '2D' }}</span>
+        </div>
+        <button v-if="!exporting" class="export" :disabled="!ready" @click="doExport">⬇ Export video (.webm)</button>
+      </div>
+      <div v-if="exporting" class="export-overlay">
         <div class="progress"><div class="bar" :style="{ width: exportRatio * 100 + '%' }" /></div>
         <span class="export-msg">{{ exportMsg }}</span>
         <button class="cancel" @click="cancelExport">Cancel</button>
-      </template>
-    </div>
-    <div v-if="exportMsg && !exporting" class="export-done">{{ exportMsg }}</div>
+      </div>
+      <div v-if="exportMsg && !exporting" class="export-done">{{ exportMsg }}</div>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.stage {
+.stage { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
+.viewport {
+  position: relative;
+  width: 100%;
+  height: 70vh;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.surface {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0b0f14;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
+}
+.map { position: absolute; inset: 0; }
+.overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: #cdd6e0; font-size: 34px; background: rgba(8, 12, 17, 0.6);
+}
+.empty-hint { color: #7b8794; font-size: 15px; }
+.transport { display: flex; align-items: center; gap: 12px; width: min(560px, 100%); }
+.play { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 15px; cursor: pointer; flex: none; }
+.scrub { flex: 1; accent-color: var(--accent); }
+.time { font-variant-numeric: tabular-nums; font-size: 13px; color: #9aa7b4; min-width: 92px; text-align: right; }
+.export-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; width: min(560px, 100%); }
+.meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: #9aa7b4; }
+.export { border: none; background: var(--accent); color: #fff; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.export:disabled { opacity: 0.5; cursor: default; }
+.cancel { border: 1px solid #3a4654; background: transparent; color: #cdd6e0; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+.progress { flex: 1; height: 8px; background: #1c2530; border-radius: 4px; overflow: hidden; min-width: 160px; }
+.bar { height: 100%; background: var(--accent); transition: width 0.1s linear; }
+.export-msg { font-size: 13px; color: #e6edf3; }
+.export-done { font-size: 13px; color: #5dd47f; }
+.export-overlay {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
   align-items: center;
   gap: 14px;
-  width: 100%;
-}
-.canvas-wrap {
-  position: relative;
-  max-height: 68vh;
-  max-width: 100%;
-  background: #0b0f14;
+  background: rgba(12, 17, 23, 0.92);
+  border: 1px solid #28333f;
+  padding: 12px 18px;
   border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-}
-.canvas {
-  display: block;
-  height: 100%;
-  width: 100%;
-  max-height: 68vh;
-  object-fit: contain;
-}
-.empty-hint {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #7b8794;
-  font-size: 15px;
-}
-.transport {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: min(560px, 100%);
-}
-.play {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  font-size: 15px;
-  cursor: pointer;
-  flex: none;
-}
-.scrub {
-  flex: 1;
-  accent-color: var(--accent);
-}
-.time {
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  color: #9aa7b4;
-  min-width: 92px;
-  text-align: right;
-}
-.export-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: min(560px, 100%);
-}
-.meta {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: #9aa7b4;
-}
-.export {
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.cancel {
-  border: 1px solid #3a4654;
-  background: transparent;
-  color: #cdd6e0;
-  padding: 8px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.progress {
-  flex: 1;
-  height: 8px;
-  background: #1c2530;
-  border-radius: 4px;
-  overflow: hidden;
-  min-width: 160px;
-}
-.bar {
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.1s linear;
-}
-.export-msg {
-  font-size: 12px;
-  color: #9aa7b4;
-}
-.export-done {
-  font-size: 13px;
-  color: #5dd47f;
+  width: min(520px, 92vw);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
 }
 </style>
