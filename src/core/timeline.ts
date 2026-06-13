@@ -1,4 +1,4 @@
-import type { Activity, TimelineConfig } from './types'
+import type { Activity, RenderConfig, TimelineConfig } from './types'
 
 /**
  * The video timeline. Maps a video time (seconds) onto a fractional index into
@@ -58,6 +58,11 @@ export class Timeline {
     const f = span > 0 ? (playPos - d[lo].playT) / span : 0
     return lo + f
   }
+}
+
+/** Full video length including the intro fly-in. */
+export function totalDuration(cfg: RenderConfig, tl: Timeline): number {
+  return (cfg.showIntro ? Math.max(0, cfg.introDuration) : 0) + tl.videoDuration
 }
 
 // --- Exponential speed slider helpers (x1 .. x200) ---

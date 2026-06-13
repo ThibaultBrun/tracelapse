@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { state } from '../store'
 import { MapScene } from '../core/mapscene'
-import { Timeline } from '../core/timeline'
+import { Timeline, totalDuration } from '../core/timeline'
 import { drawOverlay, type OverlayCtx } from '../core/overlay'
 import { exportVideo, type ExportProgress } from '../core/exporter'
 import { fmtDuration } from '../core/widgets'
@@ -61,7 +61,7 @@ function ovCtx(): OverlayCtx {
 
 function refreshMeta() {
   if (!timeline.value) return
-  duration.value = timeline.value.videoDuration
+  duration.value = totalDuration(state.render, timeline.value)
   effSpeed.value = Math.round(timeline.value.effectiveSpeed)
 }
 
@@ -105,6 +105,7 @@ watch(
   () => {
     if (!scene.value || !ready.value) return
     scene.value.setConfig(state.render)
+    refreshMeta()
     scene.value.seek(videoTime.value)
     drawOv()
   },

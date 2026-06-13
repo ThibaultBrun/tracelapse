@@ -105,9 +105,15 @@ export class MapScene {
     this.ready = new Promise((resolve) => {
       this.map.on('load', () => {
         if (cfg.terrain3d) this.map.setTerrain({ source: 'dem', exaggeration: cfg.terrainExaggeration })
+        this.applyMarkerIcon()
         resolve()
       })
     })
+  }
+
+  /** Intro duration (0 when disabled). */
+  get introDuration(): number {
+    return this.cfg.showIntro ? Math.max(0, this.cfg.introDuration) : 0
   }
 
   get attribution(): string {
@@ -139,7 +145,68 @@ export class MapScene {
     this.map.setPaintProperty('head-glow', 'circle-radius', cfg.markerSize + 5)
     this.map.setPaintProperty('head-glow', 'circle-color', cfg.accentColor)
     this.map.setTerrain(cfg.terrain3d ? { source: 'dem', exaggeration: cfg.terrainExaggeration } : null)
+    if (this.map.isStyleLoaded()) this.applyMarkerIcon()
     this.fitCam = null // recompute fit camera (padding/size may have changed)
+  }
+
+  /** Swap the marker between the dot and an emoji icon (rendered as a map image). */
+  private applyMarkerIcon() {
+    const icon = this.cfg.markerIcon
+    const useIcon = !!icon && icon !== 'dot'
+    this.map.setLayoutProperty('head', 'visibility', useIcon ? 'none' : 'visible')
+    this.map.setLayoutProperty('head-glow', 'visibility', useIcon ? 'none' : 'visible')
+    if (useIcon) {
+      const id = 'mk-' + Array.from(icon).map((c) => c.codePointAt(0)!.toString(16)).join('-')
+      if (!this.map.hasImage(id)) {
+        const img = emojiToImageData(icon, 128)
+        if (img) this.map.addImage(id, img, { pixelRatio: 2 })
+      }
+      const size = this.cfg.markerSize / 7
+      if (!this.map.getLayer('head-icon')) {
+        this.map.addLayer({
+          id: 'head-icon',
+          type: 'symbol',
+          source: 'head',
+          layout: {
+            'icon-image': id,
+            'icon-size': size,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          },
+        })
+      } else {
+        this.map.setLayoutProperty('head-icon', 'icon-image', id)
+        this.map.setLayoutProperty('head-icon', 'icon-size', size)
+        this.map.setLayoutProperty('head-icon', 'visibility', 'visible')
+      }
+    } else if (this.map.getLayer('head-icon')) {
+      this.map.setLayoutProperty('head-icon', 'visibility', 'none')
+    }
+  }
+
+  /** Camera for the start of the main animation (intro eases toward this). */
+  private startCamera() {
+    return {
+      center: [this.interpArr(this.smoothLng, 0), this.interpArr(this.smoothLat, 0)] as LngLat,
+      zoom: this.cfg.followZoom,
+      pitch: this.cfg.terrain3d ? this.cfg.pitch : 0,
+      bearing: this.cfg.terrain3d ? this.interpArr(this.smoothBearing, 0) : 0,
+    }
+  }
+
+  /** Intro fly-in: ease from far above the planet down to the start camera. */
+  private seekIntro(p: number) {
+    const e = p * p * p * (p * (p * 6 - 15) + 10) // smootherstep
+    const to = this.startCamera()
+    const fromZoom = 2.2
+    ;(this.map.getSource('travelled') as maplibregl.GeoJSONSource).setData(this.lineFeature([this.coords[0], this.coords[0]]))
+    ;(this.map.getSource('head') as maplibregl.GeoJSONSource).setData(this.pointFeature(to.center))
+    this.map.jumpTo({
+      center: to.center,
+      zoom: fromZoom + (to.zoom - fromZoom) * e,
+      pitch: to.pitch * e,
+      bearing: to.bearing * e,
+    })
   }
 
   setTimeline(t: Timeline) {
@@ -200,9 +267,14 @@ export class MapScene {
     return arr[i0] + (arr[i1] - arr[i0]) * (idx - i0)
   }
 
-  /** Position the map + route reveal for a given video time. */
+  /** Position the map + route reveal for a given video time (intro included). */
   seek(videoT: number) {
-    const idx = this.timeline.indexAtVideoTime(videoT)
+    const intro = this.introDuration
+    if (intro > 0 && videoT < intro) {
+      this.seekIntro(Math.max(0, videoT / intro))
+      return
+    }
+    const idx = this.timeline.indexAtVideoTime(videoT - intro)
     const head = sampleAt(this.act, idx)
     const headLngLat: LngLat = [head.lon, head.lat]
 
@@ -318,4 +390,18 @@ function movAvg(arr: Float64Array, win: number): Float64Array {
 
 function movAvgArr(arr: number[], win: number): Float64Array {
   return movAvg(Float64Array.from(arr), win)
+}
+
+/** Rasterise an emoji into ImageData so it can be a MapLibre marker image. */
+function emojiToImageData(emoji: string, size: number): ImageData | null {
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const ctx = c.getContext('2d')
+  if (!ctx) return null
+  ctx.font = `${Math.round(size * 0.78)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, size / 2, size * 0.54)
+  return ctx.getImageData(0, 0, size, size)
 }

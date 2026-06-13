@@ -30,7 +30,16 @@ export function drawOverlay(
   if (clear) ctx.clearRect(0, 0, W, H)
   const margin = Math.round(Math.min(W, H) * 0.035)
   const base = H / 36
-  const idx = timeline.indexAtVideoTime(videoT)
+
+  // Intro: title + summary card over the fly-in; widgets stay hidden.
+  const introDur = cfg.showIntro ? Math.max(0, cfg.introDuration) : 0
+  if (videoT < introDur) {
+    drawIntroCard(ctx, o, videoT / introDur, base, margin)
+    drawCredit(ctx, base)
+    return
+  }
+
+  const idx = timeline.indexAtVideoTime(videoT - introDur)
   const p = sampleAt(act, idx)
   const live: LiveSample = {
     speed: p.speed,
@@ -99,6 +108,87 @@ export function drawOverlay(
   ctx.fillStyle = 'rgba(255,255,255,0.85)'
   ctx.fillText(o.attribution, W - 6, H - 4)
   ctx.textAlign = 'left'
+
+  drawCredit(ctx, base)
+}
+
+export const SITE_URL = 'tracelapse.tbrun.dev'
+
+/** Site copyright/watermark, bottom-left of every frame. */
+function drawCredit(ctx: CanvasRenderingContext2D, base: number) {
+  const H = ctx.canvas.height
+  const fs = Math.round(base * 0.6)
+  ctx.font = `700 ${fs}px system-ui, sans-serif`
+  const label = `© ${SITE_URL}`
+  const w = ctx.measureText(label).width
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'bottom'
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'
+  ctx.fillRect(0, H - fs * 1.7, w + fs * 1.2, fs * 1.7)
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'
+  ctx.fillText(label, fs * 0.6, H - fs * 0.5)
+}
+
+/** Intro title + summary card, fading in/out across the fly-in. */
+function drawIntroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, base: number, margin: number) {
+  const { cfg } = o
+  const W = ctx.canvas.width
+  const H = ctx.canvas.height
+  // Fade in over first 18%, hold, fade out over last 28%.
+  const a = p < 0.18 ? p / 0.18 : p > 0.72 ? Math.max(0, 1 - (p - 0.72) / 0.28) : 1
+  ctx.save()
+  ctx.globalAlpha = a
+  // Legibility scrim.
+  const grad = ctx.createLinearGradient(0, 0, 0, H)
+  grad.addColorStop(0, 'rgba(8,12,17,0.55)')
+  grad.addColorStop(0.5, 'rgba(8,12,17,0.15)')
+  grad.addColorStop(1, 'rgba(8,12,17,0.55)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, W, H)
+
+  const cx = W / 2
+  const cy = H * 0.42
+  ctx.textAlign = 'center'
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'
+  ctx.shadowBlur = base * 0.5
+  // Title.
+  const ts = Math.round(base * 2.1)
+  ctx.font = `800 ${ts}px system-ui, sans-serif`
+  ctx.fillStyle = '#fff'
+  ctx.textBaseline = 'bottom'
+  wrapText(ctx, cfg.title || '', cx, cy, W - margin * 4, ts * 1.1)
+  // Accent rule.
+  ctx.shadowBlur = 0
+  ctx.fillStyle = cfg.accentColor
+  ctx.fillRect(cx - base * 1.6, cy + base * 0.5, base * 3.2, Math.max(2, base * 0.12))
+  // Summary.
+  if (cfg.summary) {
+    ctx.font = `600 ${Math.round(base * 0.95)}px system-ui, sans-serif`
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'
+    ctx.textBaseline = 'top'
+    ctx.shadowBlur = base * 0.4
+    ctx.fillText(cfg.summary, cx, cy + base * 1.1)
+  }
+  ctx.restore()
+  ctx.textAlign = 'left'
+  ctx.shadowBlur = 0
+}
+
+/** Draw possibly-multiline centered text, growing upward from y (baseline bottom). */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, maxW: number, lineH: number) {
+  const words = text.split(/\s+/)
+  const lines: string[] = []
+  let line = ''
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line)
+      line = w
+    } else line = test
+  }
+  if (line) lines.push(line)
+  const startY = y - (lines.length - 1) * lineH
+  lines.forEach((l, i) => ctx.fillText(l, cx, startY + i * lineH))
 }
 
 function chip(

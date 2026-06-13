@@ -122,6 +122,14 @@ export interface RenderConfig {
   pitch: number
   /** DEM vertical exaggeration. */
   terrainExaggeration: number
+  /** Marker: 'dot' or an emoji (rendered as a map image so it's captured). */
+  markerIcon: string
+  /** Intro fly-in (zoom from far above to the start) with a title card. */
+  showIntro: boolean
+  /** Intro duration in seconds. */
+  introDuration: number
+  /** One-line summary shown under the title in the intro. */
+  summary: string
 }
 
 export interface TimelineConfig {

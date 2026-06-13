@@ -1,6 +1,6 @@
 import { ArrayBufferTarget, Muxer } from 'webm-muxer'
 import type { MapScene } from './mapscene'
-import type { Timeline } from './timeline'
+import { totalDuration, type Timeline } from './timeline'
 import type { Activity, RenderConfig } from './types'
 import { drawOverlay, type OverlayCtx } from './overlay'
 
@@ -60,7 +60,7 @@ async function encodeWebCodecs(
   onProgress: (p: ExportProgress) => void,
   signal?: { cancelled: boolean },
 ): Promise<Blob> {
-  const duration = timeline.videoDuration
+  const duration = totalDuration(cfg, timeline)
   const fps = cfg.fps
   const total = Math.max(1, Math.round(duration * fps))
   const usPerFrame = 1_000_000 / fps
@@ -120,7 +120,7 @@ async function encodeMediaRecorder(
   onProgress: (p: ExportProgress) => void,
   signal?: { cancelled: boolean },
 ): Promise<Blob> {
-  const duration = timeline.videoDuration
+  const duration = totalDuration(cfg, timeline)
   // captureStream only ticks while the canvas is composited on-screen — but it
   // must not cover the map (that would freeze MapLibre). Park it as a small
   // on-screen thumbnail; the full-resolution backing store is still captured.

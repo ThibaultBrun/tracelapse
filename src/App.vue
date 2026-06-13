@@ -81,6 +81,8 @@ function pickStrava(a: StravaActivity) {
   loadStravaActivity(a)
 }
 
+const MARKER_ICONS = ['dot', '🚴', '🏃', '🥾', '🏍️', '🚗', '⛷️', '📍']
+
 onMounted(consumeStravaRedirect)
 </script>
 
@@ -238,6 +240,28 @@ onMounted(consumeStravaRedirect)
               @click="toggleWidget(w.kind)"
             >{{ w.icon }} {{ w.label }}</button>
           </div>
+        </section>
+
+        <section class="group">
+          <h4>Marker</h4>
+          <div class="chips">
+            <button
+              v-for="ic in MARKER_ICONS"
+              :key="ic"
+              :class="{ on: state.render.markerIcon === ic }"
+              @click="state.render.markerIcon = ic"
+            >{{ ic === 'dot' ? '● dot' : ic }}</button>
+          </div>
+        </section>
+
+        <section class="group">
+          <h4>Intro</h4>
+          <label class="check"><input type="checkbox" v-model="state.render.showIntro" /> Title intro (zoom from space)</label>
+          <template v-if="state.render.showIntro">
+            <label class="row"><span>Length</span><b class="val">{{ state.render.introDuration.toFixed(1) }}s</b></label>
+            <input type="range" min="1" max="6" step="0.1" v-model.number="state.render.introDuration" />
+            <input class="text" type="text" v-model="state.render.summary" placeholder="Summary line" />
+          </template>
         </section>
 
         <section class="group">

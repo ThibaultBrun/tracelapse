@@ -46,7 +46,7 @@ export const state = reactive<State>({
     fps: 30,
     mapStyleId: 'sat',
     camera: 'follow',
-    followZoom: 14.5,
+    followZoom: 15.5,
     fitPadding: 0.18,
     trackColor: '#ffffff',
     accentColor: '#fc5200',
@@ -60,6 +60,10 @@ export const state = reactive<State>({
     terrain3d: true,
     pitch: 62,
     terrainExaggeration: 1.4,
+    markerIcon: 'dot',
+    showIntro: true,
+    introDuration: 2.6,
+    summary: '',
   },
   timeline: {
     mode: 'speed',
@@ -75,6 +79,7 @@ export function loadGpxText(text: string, fileName: string) {
   const act = buildActivity(parsed.name, parsed.sport, parsed.points)
   state.activity = act
   state.render.title = act.name
+  state.render.summary = buildSummary(act)
   // Auto-pick sensible widgets based on what the activity carries.
   state.render.widgets = autoWidgets(act)
   // Default to a target duration that feels good.
@@ -112,6 +117,18 @@ export async function loadDemo() {
   } finally {
     state.loading = false
   }
+}
+
+function buildSummary(act: Activity): string {
+  const s = act.stats
+  const parts = [`${(s.totalDistance / 1000).toFixed(1)} km`]
+  if (s.hasEle) parts.push(`${Math.round(s.totalGain)} m D+`)
+  if (s.hasTime) parts.push(`${Math.round(s.movingTime / 60)} min`)
+  if (s.startTime) {
+    const d = new Date(s.startTime)
+    parts.push(d.toLocaleDateString())
+  }
+  return parts.join('  ·  ')
 }
 
 function autoWidgets(act: Activity): WidgetKind[] {
