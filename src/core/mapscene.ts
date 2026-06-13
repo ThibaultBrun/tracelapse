@@ -15,6 +15,10 @@ export class MapScene {
   readonly ready: Promise<void>
   private coords: LngLat[]
   private fitCam: { center: LngLat; zoom: number } | null = null
+  // Smoothed camera tracks (deterministic per index → safe for scrub & export).
+  private smoothBearing: Float64Array // unwrapped, can exceed [0,360)
+  private smoothLng: Float64Array
+  private smoothLat: Float64Array
 
   constructor(
     container: HTMLElement,
@@ -23,6 +27,10 @@ export class MapScene {
     private timeline: Timeline,
   ) {
     this.coords = act.points.map((p) => [p.lon, p.lat] as LngLat)
+    const tracks = this.buildSmoothTracks()
+    this.smoothBearing = tracks.bearing
+    this.smoothLng = tracks.lng
+    this.smoothLat = tracks.lat
     const style = styleById(cfg.mapStyleId)
     const start = this.coords[0]
 
@@ -138,19 +146,58 @@ export class MapScene {
     this.timeline = t
   }
 
-  /** Travel direction (bearing in degrees) around a fractional index. */
-  private bearingAt(idx: number): number {
+  /**
+   * Precompute heavily-smoothed camera tracks so the follow camera glides
+   * instead of snapping: bearings are unwrapped then moving-averaged (kills the
+   * jerk on switchbacks / GPS noise), and the camera centre is lightly smoothed.
+   */
+  private buildSmoothTracks() {
     const n = this.coords.length
-    const i = Math.max(0, Math.min(n - 2, Math.floor(idx)))
-    const ahead = Math.min(n - 1, i + Math.max(1, Math.round(n * 0.01)))
+    // Heading from a long look-ahead chord (direction toward a point ~ahead),
+    // not between adjacent points — a wiggly/noisy path then reads as one
+    // smooth general direction instead of constant micro-corrections.
+    const look = Math.min(80, Math.max(4, Math.round(n * 0.05)))
+    const raw = new Float64Array(n)
+    for (let i = 0; i < n; i++) {
+      const a = Math.max(0, i - Math.round(look / 2))
+      const b = Math.min(n - 1, i + Math.round(look / 2))
+      raw[i] = this.rawBearing(a, b === a ? Math.min(n - 1, a + 1) : b)
+    }
+    // Unwrap to a continuous angle so averaging doesn't break at the 360→0 seam.
+    const unwrapped = new Float64Array(n)
+    unwrapped[0] = raw[0]
+    for (let i = 1; i < n; i++) {
+      let d = raw[i] - raw[i - 1]
+      d = (((d + 180) % 360) + 360) % 360 - 180
+      unwrapped[i] = unwrapped[i - 1] + d
+    }
+    const bWin = Math.min(200, Math.max(15, Math.round(n * 0.1)))
+    const cWin = Math.min(24, Math.max(3, Math.round(n * 0.008)))
+    const lng = this.coords.map((c) => c[0])
+    const lat = this.coords.map((c) => c[1])
+    // Two averaging passes for an extra-smooth, "asservi" glide.
+    return {
+      bearing: movAvg(movAvg(unwrapped, bWin), bWin),
+      lng: movAvgArr(lng, cWin),
+      lat: movAvgArr(lat, cWin),
+    }
+  }
+
+  private rawBearing(i: number, j: number): number {
     const [lon1, lat1] = this.coords[i]
-    const [lon2, lat2] = this.coords[ahead]
+    const [lon2, lat2] = this.coords[j]
     const φ1 = (lat1 * Math.PI) / 180
     const φ2 = (lat2 * Math.PI) / 180
     const Δλ = ((lon2 - lon1) * Math.PI) / 180
     const y = Math.sin(Δλ) * Math.cos(φ2)
     const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
     return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+  }
+
+  private interpArr(arr: Float64Array, idx: number): number {
+    const i0 = Math.max(0, Math.min(arr.length - 1, Math.floor(idx)))
+    const i1 = Math.min(arr.length - 1, i0 + 1)
+    return arr[i0] + (arr[i1] - arr[i0]) * (idx - i0)
   }
 
   /** Position the map + route reveal for a given video time. */
@@ -167,11 +214,13 @@ export class MapScene {
     ;(this.map.getSource('head') as maplibregl.GeoJSONSource).setData(this.pointFeature(headLngLat))
 
     if (this.cfg.camera === 'follow') {
+      // Camera follows a smoothed centre + bearing (the marker stays on the
+      // exact track); gives an "asservi", gliding chase-cam instead of snapping.
       this.map.jumpTo({
-        center: headLngLat,
+        center: [this.interpArr(this.smoothLng, idx), this.interpArr(this.smoothLat, idx)],
         zoom: this.cfg.followZoom,
         pitch: this.cfg.terrain3d ? this.cfg.pitch : 0,
-        bearing: this.cfg.terrain3d ? this.bearingAt(idx) : 0,
+        bearing: this.cfg.terrain3d ? this.interpArr(this.smoothBearing, idx) : 0,
       })
     } else {
       if (!this.fitCam) {
@@ -249,4 +298,24 @@ export class MapScene {
   destroy() {
     this.map.remove()
   }
+}
+
+/** Centred moving average over a Float64Array (window = ±half). */
+function movAvg(arr: Float64Array, win: number): Float64Array {
+  const out = new Float64Array(arr.length)
+  const half = Math.floor(win / 2)
+  for (let i = 0; i < arr.length; i++) {
+    let sum = 0
+    let cnt = 0
+    for (let j = Math.max(0, i - half); j <= Math.min(arr.length - 1, i + half); j++) {
+      sum += arr[j]
+      cnt++
+    }
+    out[i] = sum / cnt
+  }
+  return out
+}
+
+function movAvgArr(arr: number[], win: number): Float64Array {
+  return movAvg(Float64Array.from(arr), win)
 }
