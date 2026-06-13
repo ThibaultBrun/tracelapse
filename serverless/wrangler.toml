@@ -1,0 +1,10 @@
+name = "tracelapse-strava"
+main = "strava-worker.js"
+compatibility_date = "2024-11-01"
+
+# Public, non-secret config (set secrets via `wrangler secret put`):
+#   wrangler secret put STRAVA_CLIENT_ID
+#   wrangler secret put STRAVA_CLIENT_SECRET
+[vars]
+REDIRECT_URI = "https://tracelapse-strava.<your-subdomain>.workers.dev/callback"
+APP_ORIGIN = "https://your-tracelapse-site.example"
