@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { state } from '../store'
 import { MapScene } from '../core/mapscene'
 import { Timeline } from '../core/timeline'
@@ -19,6 +19,7 @@ let overlayCtx: CanvasRenderingContext2D | null = null
 
 const playing = ref(false)
 const ready = ref(false)
+const busy = computed(() => state.loading || (!!state.activity && !ready.value))
 const videoTime = ref(0)
 const duration = ref(0)
 const effSpeed = ref(0)
@@ -234,9 +235,12 @@ onBeforeUnmount(() => {
       >
         <div class="map" ref="mapEl" />
         <canvas class="overlay" ref="overlayEl" />
-        <div v-if="state.activity && !ready" class="loading">Loading 3D terrain…</div>
       </div>
-      <div v-if="!state.activity" class="empty-hint">Drop a GPX/TCX file or try the demo</div>
+      <div v-if="busy" class="busy">
+        <div class="spinner" />
+        <span>{{ state.loading ? 'Loading activity…' : 'Building 3D terrain…' }}</span>
+      </div>
+      <div v-else-if="!state.activity" class="empty-hint">Drop a GPX/TCX file or try the demo</div>
     </div>
 
     <template v-if="state.activity">
@@ -288,9 +292,30 @@ onBeforeUnmount(() => {
 }
 .map { position: absolute; inset: 0; }
 .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.loading {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  color: #cdd6e0; font-size: 34px; background: rgba(8, 12, 17, 0.6);
+.busy {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #cdd6e0;
+  font-size: 15px;
+  background: rgba(8, 12, 17, 0.66);
+  backdrop-filter: blur(2px);
+}
+.spinner {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .empty-hint { color: #7b8794; font-size: 15px; }
 .transport { display: flex; align-items: center; gap: 12px; width: min(560px, 100%); }

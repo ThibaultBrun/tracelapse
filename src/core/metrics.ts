@@ -62,6 +62,18 @@ export function buildActivity(
   }
   grade[0] = grade[1] ?? 0
 
+  // "De-paused" play axis: compress stopped stretches (and cap GPS-dropout gaps)
+  // so the animation flows continuously, like the Strava flyby viewer.
+  const MOVE_MS = 0.6 // m/s below which we consider the rider stopped
+  const GAP_CAP = 6 // s: clamp long single-sample gaps (pause/auto-pause/dropout)
+  const playT = new Float64Array(n)
+  for (let i = 1; i < n; i++) {
+    const dt = tSec[i] - tSec[i - 1]
+    const moving = speed[i] > MOVE_MS
+    const dtPlay = moving ? Math.min(dt, GAP_CAP) : dt * 0.04
+    playT[i] = playT[i - 1] + Math.max(dtPlay, 0)
+  }
+
   const derived: DerivedSample[] = new Array(n)
   for (let i = 0; i < n; i++) {
     derived[i] = {
@@ -70,6 +82,7 @@ export function buildActivity(
       gain: gain[i],
       grade: grade[i],
       t: tSec[i],
+      playT: playT[i],
     }
   }
 

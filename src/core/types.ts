@@ -30,6 +30,8 @@ export interface DerivedSample {
   grade: number
   /** Seconds elapsed since start (uses timestamps, falls back to index). */
   t: number
+  /** "De-paused" time axis: stopped stretches compressed so playback flows. */
+  playT: number
 }
 
 export interface ActivityStats {

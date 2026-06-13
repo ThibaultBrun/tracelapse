@@ -15,38 +15,47 @@ export class Timeline {
     return this.act.derived[this.act.derived.length - 1].t
   }
 
+  /** "De-paused" duration that actually drives playback (stops compressed). */
+  get playDuration(): number {
+    return this.act.derived[this.act.derived.length - 1].playT
+  }
+
   /** Final video duration in seconds. */
   get videoDuration(): number {
     if (this.cfg.mode === 'target') return Math.max(1, this.cfg.targetDuration)
-    return Math.max(0.5, this.realDuration / this.cfg.speed)
+    // Speed multiplier applies to the de-paused timeline so x20 always flows.
+    return Math.max(0.5, this.playDuration / this.cfg.speed)
   }
 
-  /** Effective speed multiplier (real seconds per video second). */
+  /** Effective speed multiplier vs *real* elapsed time (for the "Nx" label). */
   get effectiveSpeed(): number {
-    if (this.cfg.mode === 'target') return this.realDuration / this.videoDuration
-    return this.cfg.speed
+    return this.realDuration / this.videoDuration
   }
 
-  /** Map a video time -> fractional point index via the time axis. */
+  /**
+   * Map a video time -> fractional point index along the de-paused (playT) axis,
+   * so stopped stretches are skipped and the animation flows continuously.
+   */
   indexAtVideoTime(videoT: number): number {
-    const realT = Math.min(this.realDuration, Math.max(0, videoT * this.effectiveSpeed))
-    return this.indexAtRealTime(realT)
+    const frac = Math.min(1, Math.max(0, videoT / this.videoDuration))
+    const playPos = frac * this.playDuration
+    return this.indexAtPlayTime(playPos)
   }
 
-  /** Binary-search the derived[].t axis for a real-time value -> fractional index. */
-  private indexAtRealTime(realT: number): number {
+  /** Binary-search the derived[].playT axis -> fractional index. */
+  private indexAtPlayTime(playPos: number): number {
     const d = this.act.derived
     let lo = 0
     let hi = d.length - 1
-    if (realT <= d[0].t) return 0
-    if (realT >= d[hi].t) return hi
+    if (playPos <= d[0].playT) return 0
+    if (playPos >= d[hi].playT) return hi
     while (lo < hi - 1) {
       const mid = (lo + hi) >> 1
-      if (d[mid].t <= realT) lo = mid
+      if (d[mid].playT <= playPos) lo = mid
       else hi = mid
     }
-    const span = d[hi].t - d[lo].t
-    const f = span > 0 ? (realT - d[lo].t) / span : 0
+    const span = d[hi].playT - d[lo].playT
+    const f = span > 0 ? (playPos - d[lo].playT) / span : 0
     return lo + f
   }
 }
