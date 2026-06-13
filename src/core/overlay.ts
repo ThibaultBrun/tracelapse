@@ -112,7 +112,7 @@ export function drawOverlay(
   drawCredit(ctx, base)
 }
 
-export const SITE_URL = 'tracelapse.tbrun.dev'
+export const SITE_URL = 'tracelapse.pista.bike'
 
 /** Site copyright/watermark, bottom-left of every frame. */
 function drawCredit(ctx: CanvasRenderingContext2D, base: number) {
