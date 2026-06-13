@@ -122,6 +122,8 @@ export interface RenderConfig {
   pitch: number
   /** DEM vertical exaggeration. */
   terrainExaggeration: number
+  /** Follow camera rotates to face the travel direction (off = steady north-up). */
+  rotateWithHeading: boolean
   /** Marker: 'dot' or an emoji (rendered as a map image so it's captured). */
   markerIcon: string
   /** Intro fly-in (zoom from far above to the start) with a title card. */

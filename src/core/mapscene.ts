@@ -190,7 +190,7 @@ export class MapScene {
       center: [this.interpArr(this.smoothLng, 0), this.interpArr(this.smoothLat, 0)] as LngLat,
       zoom: this.cfg.followZoom,
       pitch: this.cfg.terrain3d ? this.cfg.pitch : 0,
-      bearing: this.cfg.terrain3d ? this.interpArr(this.smoothBearing, 0) : 0,
+      bearing: this.cfg.rotateWithHeading ? this.interpArr(this.smoothBearing, 0) : 0,
     }
   }
 
@@ -292,7 +292,9 @@ export class MapScene {
         center: [this.interpArr(this.smoothLng, idx), this.interpArr(this.smoothLat, idx)],
         zoom: this.cfg.followZoom,
         pitch: this.cfg.terrain3d ? this.cfg.pitch : 0,
-        bearing: this.cfg.terrain3d ? this.interpArr(this.smoothBearing, idx) : 0,
+        // North-up by default (steady, no jerk in switchbacks); only rotate to
+        // the heading when the user opts in.
+        bearing: this.cfg.rotateWithHeading ? this.interpArr(this.smoothBearing, idx) : 0,
       })
     } else {
       if (!this.fitCam) {

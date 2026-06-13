@@ -212,6 +212,9 @@ onMounted(consumeStravaRedirect)
           <label class="check">
             <input type="checkbox" v-model="state.render.showFullRoute" /> Show full route ghost
           </label>
+          <label class="check">
+            <input type="checkbox" v-model="state.render.rotateWithHeading" /> Rotate camera with direction
+          </label>
         </section>
 
         <section class="group">
