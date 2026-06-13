@@ -77,13 +77,27 @@ The data/overlay layers in `src/core/` are framework-agnostic TypeScript:
 
 The UI (Vue 3) is a thin layer over a single reactive `store`.
 
-## Strava / Garmin auto-sync
+## Strava sync
 
-Auto-sync is intentionally **opt-in** and lives in [`serverless/`](serverless/).
-OAuth with Strava/Garmin needs a `client_secret` that can't ship in a static
-site, so a tiny Cloudflare Worker handles the token exchange and hands the
-front-end a GPX. See [`serverless/README.md`](serverless/README.md). Until you
-deploy it, just export a GPX from Strava/Garmin and drop it in — same result.
+Connect Strava straight from the app: **Connect with Strava → pick an activity →
+it loads as a 3D video**. OAuth needs a `client_secret` that can't live in a
+static site, so a tiny backend handles the token exchange and turns an activity's
+streams into GPX.
+
+Two interchangeable backends ship here:
+
+- **[`server/`](server/)** — a zero-dependency Node service (used in production
+  behind Caddy at `/api/*`). Endpoints: `/auth`, `/callback`, `/activities`,
+  `/gpx`. Run it with systemd (`server/tracelapse-strava.service`) and a
+  root-owned env file (`server/tracelapse-strava.env.example`).
+- **[`serverless/`](serverless/)** — the same logic as a Cloudflare Worker, if
+  you'd rather not run a server.
+
+Setup: create a Strava API app at <https://www.strava.com/settings/api>, set its
+**Authorization Callback Domain** to your host (e.g. `tracelapse.tbrun.dev`), and
+put the Client ID + Secret in the backend env. No GPX file? Just connect.
+
+Garmin sync uses the same backend pattern (OAuth 1.0a) — not yet wired; PRs welcome.
 
 ## Notes & limits
 

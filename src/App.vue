@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Stage from './components/Stage.vue'
 import {
   RESOLUTIONS,
@@ -8,6 +8,16 @@ import {
   loadFiles,
   state,
 } from './store'
+import {
+  connectStrava,
+  consumeStravaRedirect,
+  disconnectStrava,
+  fetchStravaActivities,
+  loadStravaActivity,
+  strava,
+  stravaConnected,
+  type StravaActivity,
+} from './strava'
 import { MAP_STYLES } from './core/tiles'
 import { WIDGET_CATALOG } from './core/widgets'
 import { SPEED_MAX, SPEED_MIN, sliderToSpeed, speedToSlider } from './core/timeline'
@@ -60,6 +70,18 @@ function applyPreset(widgets: WidgetKind[]) {
 const availableWidgets = computed(() =>
   WIDGET_CATALOG.filter((w) => (state.activity ? w.available(state.activity.stats) : true)),
 )
+
+function fmtKm(m: number) {
+  return (m / 1000).toFixed(1)
+}
+function fmtDate(s: string) {
+  return s ? s.slice(0, 10) : ''
+}
+function pickStrava(a: StravaActivity) {
+  loadStravaActivity(a)
+}
+
+onMounted(consumeStravaRedirect)
 </script>
 
 <template>
@@ -104,15 +126,33 @@ const availableWidgets = computed(() =>
           </ul>
         </section>
 
-        <details class="sync">
-          <summary>🔗 Connect Strava / Garmin</summary>
-          <p class="muted">
-            Auto-sync needs a tiny OAuth backend (Strava/Garmin require a client
-            secret that can't live in a static site). A ready-to-deploy Cloudflare
-            Worker template ships in <code>/serverless</code> — see the README.
-            Meanwhile, export a GPX from Strava/Garmin and drop it here.
-          </p>
-        </details>
+        <section class="sync">
+          <h4>🔗 Strava</h4>
+          <template v-if="!stravaConnected()">
+            <button class="strava-btn" @click="connectStrava">Connect with Strava</button>
+            <p v-if="strava.error" class="error">⚠ {{ strava.error }}</p>
+          </template>
+          <template v-else>
+            <div class="strava-head">
+              <span class="muted">Connected{{ strava.athlete ? ` · ${strava.athlete}` : '' }}</span>
+              <button class="link" @click="disconnectStrava">disconnect</button>
+            </div>
+            <button class="link" :disabled="strava.loading" @click="fetchStravaActivities">↻ Refresh</button>
+            <p v-if="strava.loading" class="muted">Loading activities…</p>
+            <p v-if="strava.error" class="error">⚠ {{ strava.error }}</p>
+            <ul class="acts">
+              <li
+                v-for="a in strava.activities"
+                :key="a.id"
+                :class="{ disabled: !a.has_latlng }"
+                @click="a.has_latlng && pickStrava(a)"
+              >
+                <span class="an">{{ a.name }}</span>
+                <span class="am">{{ fmtDate(a.start_date_local) }} · {{ fmtKm(a.distance) }} km{{ a.has_latlng ? '' : ' · no GPS' }}</span>
+              </li>
+            </ul>
+          </template>
+        </section>
       </aside>
 
       <!-- CENTER: preview -->
@@ -335,8 +375,35 @@ select, .text {
 }
 .row select { width: auto; }
 input[type='color'] { width: 42px; height: 28px; border: none; background: none; padding: 0; }
-.sync summary { cursor: pointer; font-size: 13px; color: #cdd6e0; }
-.sync code { background: #1a222d; padding: 1px 5px; border-radius: 4px; }
+.sync h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #8b97a4; }
+.strava-btn {
+  width: 100%;
+  background: #fc4c02;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.strava-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0; }
+.link:disabled { opacity: 0.5; }
+.acts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+.acts li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid #28333f;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.acts li:hover { border-color: var(--accent); }
+.acts li.disabled { opacity: 0.4; cursor: default; }
+.acts li.disabled:hover { border-color: #28333f; }
+.acts .an { font-size: 13px; color: #e6edf3; }
+.acts .am { font-size: 11px; color: #8b97a4; }
 @media (max-width: 1100px) {
   .layout { grid-template-columns: 1fr; }
   .panel { max-height: none; }

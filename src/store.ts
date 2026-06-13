@@ -68,25 +68,28 @@ export const state = reactive<State>({
   },
 })
 
+/** Parse GPX/TCX text into an activity and load it as the current scene. */
+export function loadGpxText(text: string, fileName: string) {
+  const parsed = parseTrack(text, fileName)
+  if (parsed.points.length < 2) throw new Error('No GPS points found in file')
+  const act = buildActivity(parsed.name, parsed.sport, parsed.points)
+  state.activity = act
+  state.render.title = act.name
+  // Auto-pick sensible widgets based on what the activity carries.
+  state.render.widgets = autoWidgets(act)
+  // Default to a target duration that feels good.
+  state.timeline.mode = 'target'
+  state.timeline.targetDuration = act.stats.duration > 0 ? 25 : 15
+}
+
 export async function loadFiles(files: FileList | File[]) {
   const list = Array.from(files)
   if (!list.length) return
   state.loading = true
   state.error = null
   try {
-    // Use the first track file (multi-track merge could come later).
-    const file = list[0]
-    const text = await file.text()
-    const parsed = parseTrack(text, file.name)
-    if (parsed.points.length < 2) throw new Error('No GPS points found in file')
-    const act = buildActivity(parsed.name, parsed.sport, parsed.points)
-    state.activity = act
-    state.render.title = act.name
-    // Auto-pick sensible widgets based on what the activity carries.
-    state.render.widgets = autoWidgets(act)
-    // Default to a target duration that feels good.
-    state.timeline.mode = 'target'
-    state.timeline.targetDuration = act.stats.duration > 0 ? 25 : 15
+    const file = list[0] // first track file (multi-track merge could come later)
+    loadGpxText(await file.text(), file.name)
   } catch (e) {
     state.error = e instanceof Error ? e.message : String(e)
     state.activity = null

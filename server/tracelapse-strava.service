@@ -1,0 +1,17 @@
+[Unit]
+Description=Tracelapse Strava OAuth backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=debian
+WorkingDirectory=/home/debian/repos/tracelapse
+EnvironmentFile=/etc/tracelapse-strava.env
+# Adjust the node path to your install (which node).
+ExecStart=/usr/bin/node server/strava.mjs
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
