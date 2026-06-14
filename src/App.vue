@@ -103,7 +103,6 @@ onMounted(consumeStravaRedirect)
     <header class="topbar">
       <h1>🎬 Tracelapse</h1>
       <p class="tag">GPX → cinematic video, 100% in your browser. No upload, no server.</p>
-      <a class="gh" href="https://github.com/ThibaultBrun/tracelapse" target="_blank" rel="noreferrer">GitHub</a>
     </header>
 
     <main class="layout">
