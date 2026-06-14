@@ -5,10 +5,23 @@ import type { Activity, RenderConfig, TimelineConfig } from './types'
  * the activity's points, honouring either a speed multiplier or a target length.
  */
 export class Timeline {
+  /** Monotonic 0→1 progress axis blending distance and de-paused time. */
+  private progress: Float64Array
+
   constructor(
     private act: Activity,
     private cfg: TimelineConfig,
-  ) {}
+  ) {
+    const d = act.derived
+    const n = d.length
+    const distTot = d[n - 1].dist || 1
+    const playTot = d[n - 1].playT || 1
+    const w = Math.min(1, Math.max(0, cfg.pacing))
+    this.progress = new Float64Array(n)
+    for (let i = 0; i < n; i++) {
+      this.progress[i] = (1 - w) * (d[i].dist / distTot) + w * (d[i].playT / playTot)
+    }
+  }
 
   /** Real activity duration in seconds (timestamped span, or point count). */
   get realDuration(): number {
@@ -33,29 +46,25 @@ export class Timeline {
   }
 
   /**
-   * Map a video time -> fractional point index along the de-paused (playT) axis,
-   * so stopped stretches are skipped and the animation flows continuously.
+   * Map a video time -> fractional point index along the blended progress axis.
+   * Pacing toward "distance" gives a constant spatial speed (smooth: fast and
+   * slow sections play at the same visual pace); toward "speed" follows the real
+   * pace. Pauses occupy ~no progress either way, so they're always skipped.
    */
   indexAtVideoTime(videoT: number): number {
-    const frac = Math.min(1, Math.max(0, videoT / this.videoDuration))
-    const playPos = frac * this.playDuration
-    return this.indexAtPlayTime(playPos)
-  }
-
-  /** Binary-search the derived[].playT axis -> fractional index. */
-  private indexAtPlayTime(playPos: number): number {
-    const d = this.act.derived
+    const target = Math.min(1, Math.max(0, videoT / this.videoDuration))
+    const p = this.progress
     let lo = 0
-    let hi = d.length - 1
-    if (playPos <= d[0].playT) return 0
-    if (playPos >= d[hi].playT) return hi
+    let hi = p.length - 1
+    if (target <= p[0]) return 0
+    if (target >= p[hi]) return hi
     while (lo < hi - 1) {
       const mid = (lo + hi) >> 1
-      if (d[mid].playT <= playPos) lo = mid
+      if (p[mid] <= target) lo = mid
       else hi = mid
     }
-    const span = d[hi].playT - d[lo].playT
-    const f = span > 0 ? (playPos - d[lo].playT) / span : 0
+    const span = p[hi] - p[lo]
+    const f = span > 0 ? (target - p[lo]) / span : 0
     return lo + f
   }
 }

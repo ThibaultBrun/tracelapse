@@ -185,6 +185,11 @@ onMounted(consumeStravaRedirect)
             </label>
             <input type="range" min="3" max="120" step="1" v-model.number="state.timeline.targetDuration" />
           </template>
+          <label class="row" style="margin-top:10px"><span>Pacing</span>
+            <b class="val">{{ Math.round(state.timeline.pacing * 100) }}% speed</b>
+          </label>
+          <input type="range" min="0" max="1" step="0.05" v-model.number="state.timeline.pacing" />
+          <div class="ticks"><span>Distance (smooth)</span><span>Real speed</span></div>
         </section>
 
         <section class="group">

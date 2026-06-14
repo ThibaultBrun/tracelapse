@@ -140,4 +140,9 @@ export interface TimelineConfig {
   speed: number
   /** Target video length in seconds (when mode = 'target'). */
   targetDuration: number
+  /**
+   * Pacing 0..1: 0 = follow distance (constant spatial speed, very smooth),
+   * 1 = follow real speed (fast where you rode fast). Blends the two.
+   */
+  pacing: number
 }
