@@ -81,7 +81,10 @@ function pickStrava(a: StravaActivity) {
   loadStravaActivity(a)
 }
 
-const MARKER_ICONS = ['dot', '🚴', '🏃', '🥾', '🏍️', '🚗', '⛷️', '📍']
+const MARKER_ICONS = [
+  'dot', '🚴', '🏃', '🥾', '🏍️', '🚗', '⛷️', '🏂',
+  '🏄', '🛶', '🚣', '🪁', '⛵', '🤿', '🏊', '📍',
+]
 
 onMounted(consumeStravaRedirect)
 </script>

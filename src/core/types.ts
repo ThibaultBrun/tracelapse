@@ -41,6 +41,7 @@ export interface ActivityStats {
   duration: number // s (timestamp span)
   movingTime: number // s
   maxSpeed: number // m/s
+  maxSpeedIdx: number // point index of peak speed
   avgSpeed: number // m/s
   maxHr: number | null
   avgHr: number | null

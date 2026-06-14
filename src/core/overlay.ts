@@ -98,6 +98,8 @@ export function drawOverlay(
     }
   }
 
+  drawTopSpeed(ctx, o, idx, base)
+
   // Attribution (MapLibre's own is hidden in export; bake ours in).
   ctx.font = `${Math.round(base * 0.5)}px Inter, system-ui, sans-serif`
   ctx.textAlign = 'right'
@@ -110,6 +112,60 @@ export function drawOverlay(
   ctx.textAlign = 'left'
 
   drawCredit(ctx, base)
+}
+
+/** Flash a "TOP SPEED" badge as the rider reaches the activity's peak speed. */
+function drawTopSpeed(ctx: CanvasRenderingContext2D, o: OverlayCtx, idx: number, base: number) {
+  const { act, cfg } = o
+  const n = act.points.length
+  const win = Math.max(2, Math.round(n * 0.012))
+  const dist = Math.abs(idx - act.stats.maxSpeedIdx)
+  if (dist > win) return
+  const a = 1 - dist / win // 1 at the peak, fades out around it
+  const W = ctx.canvas.width
+  const cx = W / 2
+  const cy = ctx.canvas.height * 0.2
+  const v = (cfg.units === 'imperial' ? act.stats.maxSpeed * 2.23694 : act.stats.maxSpeed * 3.6).toFixed(1)
+  const unit = cfg.units === 'imperial' ? 'mph' : 'km/h'
+
+  ctx.save()
+  ctx.globalAlpha = a
+  ctx.translate(cx, cy)
+  ctx.scale(0.9 + 0.1 * a, 0.9 + 0.1 * a)
+  ctx.textAlign = 'center'
+  const labelF = Math.round(base * 0.72)
+  const valF = Math.round(base * 1.7)
+  ctx.font = `800 ${valF}px Inter, system-ui, sans-serif`
+  const valStr = `${v} ${unit}`
+  const wPill = Math.max(ctx.measureText(valStr).width, base * 6) + base * 2.4
+  const hPill = valF + labelF + base * 1.3
+  // Gold pill.
+  const r = hPill * 0.28
+  const x = -wPill / 2
+  const y = -hPill / 2
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + wPill, y, x + wPill, y + hPill, r)
+  ctx.arcTo(x + wPill, y + hPill, x, y + hPill, r)
+  ctx.arcTo(x, y + hPill, x, y, r)
+  ctx.arcTo(x, y, x + wPill, y, r)
+  ctx.closePath()
+  ctx.shadowColor = cfg.accentColor
+  ctx.shadowBlur = base * 1.2
+  ctx.fillStyle = cfg.accentColor
+  ctx.fill()
+  ctx.shadowBlur = 0
+  // Text.
+  ctx.fillStyle = 'rgba(20,17,12,0.92)'
+  ctx.font = `800 ${labelF}px Inter, system-ui, sans-serif`
+  ctx.textBaseline = 'top'
+  ctx.fillText('🔥 TOP SPEED', 0, y + base * 0.45)
+  ctx.fillStyle = '#1c1812'
+  ctx.font = `800 ${valF}px Inter, system-ui, sans-serif`
+  ctx.fillText(valStr, 0, y + base * 0.45 + labelF)
+  ctx.restore()
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
 }
 
 export const SITE_URL = 'tracelapse.pista.bike'

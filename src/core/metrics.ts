@@ -138,9 +138,13 @@ function aggregate(
   let maxEle: number | null = null
   let minEle: number | null = null
 
+  let maxSpeedIdx = 0
   for (let i = 0; i < n; i++) {
     const s = derived[i].speed
-    if (s > maxSpeed) maxSpeed = s
+    if (s > maxSpeed) {
+      maxSpeed = s
+      maxSpeedIdx = i
+    }
     if (i > 0 && s > 0.5) movingTime += tSec[i] - tSec[i - 1]
     const p = points[i]
     if (p.hr != null) {
@@ -168,6 +172,7 @@ function aggregate(
     duration,
     movingTime: movingTime || duration,
     maxSpeed,
+    maxSpeedIdx,
     avgSpeed: (movingTime || duration) > 0 ? totalDistance / (movingTime || duration) : 0,
     maxHr,
     avgHr: hrCnt ? hrSum / hrCnt : null,

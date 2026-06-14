@@ -84,7 +84,7 @@ async function rebuild() {
   sc.seek(0)
   drawOv()
   ready.value = true
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__tl = { scene: sc, timeline: tl }
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__tl = { scene: sc, timeline: tl, act }
 }
 
 watch(() => state.activity, rebuild)
@@ -121,7 +121,7 @@ watch(
     timeline.value = tl
     scene.value.setTimeline(tl)
     refreshMeta()
-    if (videoTime.value > tl.videoDuration) videoTime.value = tl.videoDuration
+    if (videoTime.value > duration.value) videoTime.value = duration.value
     scene.value.seek(videoTime.value)
     drawOv()
   },
@@ -133,8 +133,8 @@ function tick(ts: number) {
   if (!lastTs) lastTs = ts
   videoTime.value += (ts - lastTs) / 1000
   lastTs = ts
-  if (videoTime.value >= timeline.value.videoDuration) {
-    videoTime.value = timeline.value.videoDuration
+  if (videoTime.value >= duration.value) {
+    videoTime.value = duration.value
     scene.value.seek(videoTime.value)
     drawOv()
     stop()
@@ -147,7 +147,7 @@ function tick(ts: number) {
 
 function play() {
   if (!timeline.value || !ready.value) return
-  if (videoTime.value >= timeline.value.videoDuration) videoTime.value = 0
+  if (videoTime.value >= duration.value) videoTime.value = 0
   playing.value = true
   lastTs = 0
   rafId = requestAnimationFrame(tick)
@@ -237,7 +237,14 @@ onBeforeUnmount(() => {
         <div class="map" ref="mapEl" />
         <canvas class="overlay" ref="overlayEl" />
       </div>
-      <div v-if="busy" class="busy">
+      <div v-if="exporting" class="busy export-cover">
+        <div class="spinner" />
+        <span>⚙️ Generating video… {{ Math.round(exportRatio * 100) }}%</span>
+        <div class="progress"><div class="bar" :style="{ width: exportRatio * 100 + '%' }" /></div>
+        <small>{{ exportMsg }}</small>
+        <button class="cancel" @click="cancelExport">Cancel</button>
+      </div>
+      <div v-else-if="busy" class="busy">
         <div class="spinner" />
         <span>{{ state.loading ? 'Loading activity…' : 'Building 3D terrain…' }}</span>
       </div>
@@ -260,11 +267,6 @@ onBeforeUnmount(() => {
           <span>· {{ state.render.terrain3d ? '3D' : '2D' }}</span>
         </div>
         <button v-if="!exporting" class="export" :disabled="!ready" @click="doExport">⬇ Export video (.webm)</button>
-      </div>
-      <div v-if="exporting" class="export-overlay">
-        <div class="progress"><div class="bar" :style="{ width: exportRatio * 100 + '%' }" /></div>
-        <span class="export-msg">{{ exportMsg }}</span>
-        <button class="cancel" @click="cancelExport">Cancel</button>
       </div>
       <div v-if="exportMsg && !exporting" class="export-done">{{ exportMsg }}</div>
     </template>
@@ -319,6 +321,9 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 .empty-hint { color: #b3a890; font-size: 15px; }
+.export-cover .progress { width: min(60%, 320px); }
+.export-cover small { color: var(--text-dim); font-size: 12px; }
+.export-cover .cancel { margin-top: 4px; }
 .transport { display: flex; align-items: center; gap: 12px; width: min(560px, 100%); }
 .play { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 15px; cursor: pointer; flex: none; }
 .scrub { flex: 1; accent-color: var(--accent); }
