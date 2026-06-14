@@ -135,8 +135,8 @@ export interface RenderConfig {
   showOutro: boolean
   /** Outro duration in seconds. */
   outroDuration: number
-  /** One-line summary shown under the title in the intro/outro. */
-  summary: string
+  /** Which summary stats appear on the intro/outro cards. */
+  summaryStats: string[]
 }
 
 export interface TimelineConfig {

@@ -19,7 +19,7 @@ import {
   type StravaActivity,
 } from './strava'
 import { MAP_STYLES } from './core/tiles'
-import { WIDGET_CATALOG } from './core/widgets'
+import { SUMMARY_CATALOG, WIDGET_CATALOG } from './core/widgets'
 import { SPEED_MAX, SPEED_MIN, sliderToSpeed, speedToSlider } from './core/timeline'
 import type { WidgetKind } from './core/types'
 
@@ -79,6 +79,15 @@ function fmtDate(s: string) {
 }
 function pickStrava(a: StravaActivity) {
   loadStravaActivity(a)
+}
+
+const availableSummary = computed(() =>
+  SUMMARY_CATALOG.filter((m) => (state.activity ? m.available(state.activity.stats) : true)),
+)
+function toggleSummary(key: string) {
+  const i = state.render.summaryStats.indexOf(key)
+  if (i >= 0) state.render.summaryStats.splice(i, 1)
+  else state.render.summaryStats.push(key)
 }
 
 const MARKER_ICONS = [
@@ -268,16 +277,16 @@ onMounted(consumeStravaRedirect)
         <section class="group">
           <h4>Intro &amp; outro</h4>
           <label class="check"><input type="checkbox" v-model="state.render.showIntro" /> Intro (zoom from space + title)</label>
-          <template v-if="state.render.showIntro">
-            <label class="row"><span>Intro length</span><b class="val">{{ state.render.introDuration.toFixed(1) }}s</b></label>
-            <input type="range" min="1" max="6" step="0.1" v-model.number="state.render.introDuration" />
-          </template>
           <label class="check"><input type="checkbox" v-model="state.render.showOutro" /> Outro (zoom out + site address)</label>
-          <template v-if="state.render.showOutro">
-            <label class="row"><span>Outro length</span><b class="val">{{ state.render.outroDuration.toFixed(1) }}s</b></label>
-            <input type="range" min="1" max="6" step="0.1" v-model.number="state.render.outroDuration" />
-          </template>
-          <input class="text" type="text" v-model="state.render.summary" placeholder="Summary line" />
+          <p class="muted" style="margin:6px 0 0">Summary stats shown on intro/outro:</p>
+          <div class="chips">
+            <button
+              v-for="m in availableSummary"
+              :key="m.key"
+              :class="{ on: state.render.summaryStats.includes(m.key) }"
+              @click="toggleSummary(m.key)"
+            >{{ m.label }}</button>
+          </div>
         </section>
 
         <section class="group">

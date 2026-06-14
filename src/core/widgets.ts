@@ -120,3 +120,47 @@ function fmtPace(secPerUnit: number): string {
   const s = Math.round(secPerUnit % 60)
   return `${m}:${pad(s)}`
 }
+
+// --- Summary stats (intro/outro cards) ---
+export type SummaryKey =
+  | 'distance' | 'duration' | 'moving' | 'avgSpeed' | 'maxSpeed' | 'pace'
+  | 'avgHr' | 'maxHr' | 'avgPower' | 'maxPower' | 'gain' | 'loss' | 'maxEle' | 'date'
+
+export interface SummaryMeta {
+  key: SummaryKey
+  label: string
+  available: (s: ActivityStats) => boolean
+  value: (s: ActivityStats, units: 'metric' | 'imperial') => string
+}
+
+export const SUMMARY_CATALOG: SummaryMeta[] = [
+  { key: 'distance', label: 'Distance', available: () => true,
+    value: (s, u) => u === 'imperial' ? `${(s.totalDistance / 1609.34).toFixed(1)} mi` : `${(s.totalDistance / 1000).toFixed(1)} km` },
+  { key: 'duration', label: 'Total time', available: (s) => s.hasTime, value: (s) => fmtDuration(s.duration) },
+  { key: 'moving', label: 'Moving time', available: (s) => s.hasTime, value: (s) => fmtDuration(s.movingTime) },
+  { key: 'avgSpeed', label: 'Avg speed', available: () => true,
+    value: (s, u) => u === 'imperial' ? `${(s.avgSpeed * 2.23694).toFixed(1)} mph` : `${(s.avgSpeed * 3.6).toFixed(1)} km/h` },
+  { key: 'maxSpeed', label: 'Max speed', available: () => true,
+    value: (s, u) => u === 'imperial' ? `${(s.maxSpeed * 2.23694).toFixed(1)} mph` : `${(s.maxSpeed * 3.6).toFixed(1)} km/h` },
+  { key: 'pace', label: 'Avg pace', available: (s) => s.hasTime,
+    value: (s, u) => `${fmtPace(s.avgSpeed > 0.2 ? (u === 'imperial' ? 1609.34 : 1000) / s.avgSpeed : 0)} ${u === 'imperial' ? '/mi' : '/km'}` },
+  { key: 'avgHr', label: 'Avg HR', available: (s) => s.hasHr, value: (s) => `${Math.round(s.avgHr!)} bpm` },
+  { key: 'maxHr', label: 'Max HR', available: (s) => s.hasHr, value: (s) => `${Math.round(s.maxHr!)} bpm` },
+  { key: 'avgPower', label: 'Avg power', available: (s) => s.hasPower, value: (s) => `${Math.round(s.avgPower!)} W` },
+  { key: 'maxPower', label: 'Max power', available: (s) => s.hasPower, value: (s) => `${Math.round(s.maxPower!)} W` },
+  { key: 'gain', label: 'Elev. gain', available: (s) => s.hasEle,
+    value: (s, u) => u === 'imperial' ? `${Math.round(s.totalGain * 3.28084)} ft` : `${Math.round(s.totalGain)} m` },
+  { key: 'loss', label: 'Elev. loss', available: (s) => s.hasEle,
+    value: (s, u) => u === 'imperial' ? `${Math.round(s.totalLoss * 3.28084)} ft` : `${Math.round(s.totalLoss)} m` },
+  { key: 'maxEle', label: 'Max alt.', available: (s) => s.hasEle,
+    value: (s, u) => s.maxEle == null ? '–' : (u === 'imperial' ? `${Math.round(s.maxEle * 3.28084)} ft` : `${Math.round(s.maxEle)} m`) },
+  { key: 'date', label: 'Date', available: (s) => s.startTime != null,
+    value: (s) => (s.startTime ? new Date(s.startTime).toLocaleDateString() : '–') },
+]
+
+export function summaryItems(keys: string[], stats: ActivityStats, units: 'metric' | 'imperial'): { label: string; value: string }[] {
+  return keys
+    .map((k) => SUMMARY_CATALOG.find((m) => m.key === k))
+    .filter((m): m is SummaryMeta => !!m && m.available(stats))
+    .map((m) => ({ label: m.label, value: m.value(stats, units) }))
+}

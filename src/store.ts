@@ -63,10 +63,10 @@ export const state = reactive<State>({
     rotateWithHeading: true,
     markerIcon: 'dot',
     showIntro: true,
-    introDuration: 2.6,
+    introDuration: 4,
     showOutro: true,
-    outroDuration: 2.8,
-    summary: '',
+    outroDuration: 4,
+    summaryStats: ['distance', 'duration', 'gain', 'avgSpeed'],
   },
   timeline: {
     mode: 'speed',
@@ -83,7 +83,7 @@ export function loadGpxText(text: string, fileName: string) {
   const act = buildActivity(parsed.name, parsed.sport, parsed.points)
   state.activity = act
   state.render.title = act.name
-  state.render.summary = buildSummary(act)
+  state.render.summaryStats = autoSummary(act)
   // Auto-pick sensible widgets based on what the activity carries.
   state.render.widgets = autoWidgets(act)
   // Default to a target duration that feels good.
@@ -123,16 +123,14 @@ export async function loadDemo() {
   }
 }
 
-function buildSummary(act: Activity): string {
+function autoSummary(act: Activity): string[] {
   const s = act.stats
-  const parts = [`${(s.totalDistance / 1000).toFixed(1)} km`]
-  if (s.hasEle) parts.push(`${Math.round(s.totalGain)} m D+`)
-  if (s.hasTime) parts.push(`${Math.round(s.movingTime / 60)} min`)
-  if (s.startTime) {
-    const d = new Date(s.startTime)
-    parts.push(d.toLocaleDateString())
-  }
-  return parts.join('  ·  ')
+  const keys = ['distance']
+  if (s.hasTime) keys.push('duration')
+  if (s.hasEle) keys.push('gain')
+  keys.push('avgSpeed', 'maxSpeed')
+  if (s.hasHr) keys.push('avgHr')
+  return keys
 }
 
 function autoWidgets(act: Activity): WidgetKind[] {

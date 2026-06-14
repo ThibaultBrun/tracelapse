@@ -1,7 +1,7 @@
 import type { Activity, RenderConfig } from './types'
 import type { Timeline } from './timeline'
 import { sampleAt } from './metrics'
-import { fmtDuration, widgetValue, type LiveSample } from './widgets'
+import { fmtDuration, summaryItems, widgetValue, type LiveSample } from './widgets'
 
 export interface OverlayCtx {
   act: Activity
@@ -226,16 +226,36 @@ function drawIntroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, 
   ctx.shadowBlur = 0
   ctx.fillStyle = cfg.accentColor
   ctx.fillRect(cx - base * 1.6, cy + base * 0.5, base * 3.2, Math.max(2, base * 0.12))
-  // Summary.
-  if (cfg.summary) {
-    ctx.font = `600 ${Math.round(base * 0.95)}px Inter, system-ui, sans-serif`
-    ctx.fillStyle = 'rgba(255,255,255,0.92)'
-    ctx.textBaseline = 'top'
-    ctx.shadowBlur = base * 0.4
-    ctx.fillText(cfg.summary, cx, cy + base * 1.1)
-  }
+  // Summary stat grid.
+  drawSummaryGrid(ctx, o, cx, cy + base * 1.4, base)
   ctx.restore()
   ctx.textAlign = 'left'
+  ctx.shadowBlur = 0
+}
+
+/** Lay out the chosen summary stats as a centered grid (2 columns): big value + small label. */
+function drawSummaryGrid(ctx: CanvasRenderingContext2D, o: OverlayCtx, cx: number, top: number, base: number) {
+  const items = summaryItems(o.cfg.summaryStats, o.act.stats, o.cfg.units)
+  if (!items.length) return
+  const cols = items.length <= 3 ? 1 : 2
+  const colW = base * 7
+  const rowH = base * 2.1
+  ctx.shadowBlur = base * 0.35
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'
+  for (let i = 0; i < items.length; i++) {
+    const col = cols === 1 ? 0 : i % cols
+    const row = cols === 1 ? i : Math.floor(i / cols)
+    const x = cx + (cols === 1 ? 0 : (col === 0 ? -colW / 2 : colW / 2))
+    const y = top + row * rowH
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#fff'
+    ctx.font = `800 ${Math.round(base * 1.05)}px Inter, system-ui, sans-serif`
+    ctx.fillText(items[i].value, x, y)
+    ctx.fillStyle = o.cfg.accentColor
+    ctx.font = `700 ${Math.round(base * 0.55)}px Inter, system-ui, sans-serif`
+    ctx.fillText(items[i].label.toUpperCase(), x, y + base * 1.15)
+  }
   ctx.shadowBlur = 0
 }
 
@@ -264,24 +284,24 @@ function drawOutroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, 
     ctx.font = `800 ${Math.round(base * 1.5)}px Inter, system-ui, sans-serif`
     ctx.fillStyle = '#fff'
     ctx.textBaseline = 'bottom'
-    wrapText(ctx, cfg.title, cx, cy - base * 0.4, W - margin * 4, base * 1.6)
+    wrapText(ctx, cfg.title, cx, cy - base * 0.3, W - margin * 4, base * 1.6)
   }
-  if (cfg.summary) {
-    ctx.font = `600 ${Math.round(base * 0.95)}px Inter, system-ui, sans-serif`
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'
-    ctx.textBaseline = 'top'
-    ctx.fillText(cfg.summary, cx, cy)
-  }
+  // Summary stat grid.
+  drawSummaryGrid(ctx, o, cx, cy, base)
+  const items = summaryItems(cfg.summaryStats, o.act.stats, cfg.units)
+  const gridRows = Math.ceil(items.length / (items.length <= 3 ? 1 : 2))
+  const urlY = cy + gridRows * base * 2.1 + base * 0.8
   // Big site address.
   ctx.shadowBlur = 0
   ctx.fillStyle = cfg.accentColor
-  ctx.fillRect(cx - base * 2, cy + base * 2, base * 4, Math.max(2, base * 0.12))
+  ctx.fillRect(cx - base * 2, urlY, base * 4, Math.max(2, base * 0.12))
   ctx.shadowColor = cfg.accentColor
   ctx.shadowBlur = base * 1.2
   ctx.fillStyle = '#fff'
-  ctx.font = `800 ${Math.round(base * 1.8)}px Inter, system-ui, sans-serif`
+  ctx.font = `800 ${Math.round(base * 1.7)}px Inter, system-ui, sans-serif`
+  ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
-  ctx.fillText(SITE_URL, cx, cy + base * 2.5)
+  ctx.fillText(SITE_URL, cx, urlY + base * 0.5)
   ctx.restore()
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
