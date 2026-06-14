@@ -178,14 +178,16 @@ function onScrub(e: Event) {
   drawOv()
 }
 
-async function doExport() {
+const shareSupported = typeof navigator !== 'undefined' && !!(navigator as Navigator).canShare
+
+async function doExport(share = false) {
   if (!scene.value || !timeline.value || !state.activity) return
   stop()
   exporting.value = true
   cancelSignal.cancelled = false
   videoTime.value = 0
   try {
-    const blob = await exportVideo(
+    const { blob, ext } = await exportVideo(
       scene.value,
       timeline.value,
       state.activity,
@@ -196,19 +198,30 @@ async function doExport() {
           p.phase === 'warmup'
             ? `Loading map & terrain… ${Math.round(p.ratio * 100)}%`
             : p.phase === 'recording'
-              ? `Recording… ${Math.round(p.ratio * 100)}%`
+              ? `Rendering… ${Math.round(p.ratio * 100)}%`
               : 'Finalising…'
       },
       cancelSignal,
     )
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
     const safe = (state.render.title || 'tracelapse').replace(/[^\w-]+/g, '_').slice(0, 40)
-    a.href = url
-    a.download = `${safe}.webm`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 10000)
-    exportMsg.value = 'Done — saved .webm'
+    const file = new File([blob], `${safe}.${ext}`, { type: ext === 'mp4' ? 'video/mp4' : 'video/webm' })
+
+    if (share && (navigator as Navigator).canShare?.({ files: [file] })) {
+      try {
+        await (navigator as Navigator).share({ files: [file], title: state.render.title || 'Tracelapse' })
+        exportMsg.value = 'Shared ✓'
+      } catch {
+        exportMsg.value = '' // user dismissed the share sheet
+      }
+    } else {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      exportMsg.value = share ? `Saved .${ext} (sharing not available here)` : `Done — saved .${ext}`
+    }
   } catch (e) {
     exportMsg.value = (e as Error).message === 'cancelled' ? 'Cancelled' : `Error: ${(e as Error).message}`
   } finally {
@@ -278,7 +291,8 @@ onBeforeUnmount(() => {
           <span>· {{ state.render.width }}×{{ state.render.height }}</span>
           <span>· {{ state.render.terrain3d ? '3D' : '2D' }}</span>
         </div>
-        <button v-if="!exporting" class="export" :disabled="!ready" @click="doExport">⬇ Export video (.webm)</button>
+        <button v-if="!exporting" class="export" :disabled="!ready" @click="doExport(false)">⬇ Export video</button>
+        <button v-if="!exporting && shareSupported" class="export share" :disabled="!ready" @click="doExport(true)">📲 Share</button>
       </div>
       <div v-if="exportMsg && !exporting" class="export-done">{{ exportMsg }}</div>
     </template>
@@ -344,6 +358,7 @@ onBeforeUnmount(() => {
 .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: #b3a890; }
 .export { border: none; background: var(--accent); color: #fff; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; }
 .export:disabled { opacity: 0.5; cursor: default; }
+.export.share { background: var(--accent-hi); color: #2a2113; }
 .cancel { border: 1px solid #4a4234; background: transparent; color: #e9e1d2; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
 .progress { flex: 1; height: 8px; background: #38322a; border-radius: 4px; overflow: hidden; min-width: 160px; }
 .bar { height: 100%; background: var(--accent); transition: width 0.1s linear; }

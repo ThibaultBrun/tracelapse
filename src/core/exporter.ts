@@ -1,4 +1,5 @@
-import { ArrayBufferTarget, Muxer } from 'webm-muxer'
+import { ArrayBufferTarget as WebmTarget, Muxer as WebmMuxer } from 'webm-muxer'
+import { ArrayBufferTarget as Mp4Target, Muxer as Mp4Muxer } from 'mp4-muxer'
 import type { MapScene } from './mapscene'
 import { totalDuration, type Timeline } from './timeline'
 import type { Activity, RenderConfig } from './types'
@@ -7,6 +8,11 @@ import { drawOverlay, type OverlayCtx } from './overlay'
 export interface ExportProgress {
   phase: 'warmup' | 'recording' | 'encoding'
   ratio: number
+}
+
+export interface ExportResult {
+  blob: Blob
+  ext: 'mp4' | 'webm'
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -28,7 +34,7 @@ export async function exportVideo(
   cfg: RenderConfig,
   onProgress: (p: ExportProgress) => void,
   signal?: { cancelled: boolean },
-): Promise<Blob> {
+): Promise<ExportResult> {
   // Detached composite canvas. It must NOT be appended on-screen over the map:
   // an opaque overlay would occlude MapLibre and freeze its drawing buffer
   // (black frames). WebCodecs reads the canvas backing store directly, so it
@@ -51,6 +57,33 @@ export async function exportVideo(
   return await encodeMediaRecorder(out, ctx, scene, timeline, overlayCtx, cfg, onProgress, signal)
 }
 
+/** Prefer H.264/MP4 (Instagram-friendly, shareable) when the platform can encode
+ *  it; otherwise fall back to VP9/WebM. */
+async function pickWebCodec(
+  cfg: RenderConfig,
+): Promise<{ ext: 'mp4' | 'webm'; codec: string; mp4: boolean }> {
+  const bitrate = Math.round(cfg.width * cfg.height * cfg.fps * 0.12)
+  const supported = async (codec: string, extra: Record<string, unknown> = {}) => {
+    try {
+      const r = await VideoEncoder.isConfigSupported({
+        codec,
+        width: cfg.width,
+        height: cfg.height,
+        bitrate,
+        framerate: cfg.fps,
+        ...extra,
+      })
+      return !!r.supported
+    } catch {
+      return false
+    }
+  }
+  for (const c of ['avc1.640028', 'avc1.42002a', 'avc1.42001f']) {
+    if (await supported(c, { avc: { format: 'avc' } })) return { ext: 'mp4', codec: c, mp4: true }
+  }
+  return { ext: 'webm', codec: 'vp09.00.10.08', mp4: false }
+}
+
 async function encodeWebCodecs(
   out: HTMLCanvasElement,
   _scene: MapScene,
@@ -59,27 +92,40 @@ async function encodeWebCodecs(
   composeFrame: (t: number) => Promise<void>,
   onProgress: (p: ExportProgress) => void,
   signal?: { cancelled: boolean },
-): Promise<Blob> {
+): Promise<ExportResult> {
   const duration = totalDuration(cfg, timeline)
   const fps = cfg.fps
   const total = Math.max(1, Math.round(duration * fps))
   const usPerFrame = 1_000_000 / fps
+  const bitrate = Math.round(cfg.width * cfg.height * fps * 0.12)
+  const fmt = await pickWebCodec(cfg)
 
-  const muxer = new Muxer({
-    target: new ArrayBufferTarget(),
-    video: { codec: 'V_VP9', width: cfg.width, height: cfg.height, frameRate: fps },
-    firstTimestampBehavior: 'offset',
-  })
+  const mp4 = fmt.mp4
+    ? new Mp4Muxer({
+        target: new Mp4Target(),
+        video: { codec: 'avc', width: cfg.width, height: cfg.height },
+        fastStart: 'in-memory',
+      })
+    : null
+  const webm = fmt.mp4
+    ? null
+    : new WebmMuxer({
+        target: new WebmTarget(),
+        video: { codec: 'V_VP9', width: cfg.width, height: cfg.height, frameRate: fps },
+        firstTimestampBehavior: 'offset',
+      })
+
   const encoder = new VideoEncoder({
-    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    output: (chunk, meta) => (mp4 ? mp4.addVideoChunk(chunk, meta) : webm!.addVideoChunk(chunk, meta)),
     error: (e) => console.error('[tracelapse] encoder', e),
   })
   encoder.configure({
-    codec: 'vp09.00.10.08',
+    codec: fmt.codec,
     width: cfg.width,
     height: cfg.height,
-    bitrate: Math.round(cfg.width * cfg.height * fps * 0.12),
+    bitrate,
     framerate: fps,
+    ...(fmt.mp4 ? { avc: { format: 'avc' } } : {}),
   })
 
   for (let i = 0; i < total; i++) {
@@ -99,8 +145,12 @@ async function encodeWebCodecs(
   onProgress({ phase: 'encoding', ratio: 1 })
   await encoder.flush()
   encoder.close()
-  muxer.finalize()
-  return new Blob([muxer.target.buffer], { type: 'video/webm' })
+  if (mp4) {
+    mp4.finalize()
+    return { blob: new Blob([mp4.target.buffer], { type: 'video/mp4' }), ext: 'mp4' }
+  }
+  webm!.finalize()
+  return { blob: new Blob([webm!.target.buffer], { type: 'video/webm' }), ext: 'webm' }
 }
 
 // --- Fallback: real-time MediaRecorder (used only when WebCodecs is absent) ---
@@ -119,7 +169,7 @@ async function encodeMediaRecorder(
   cfg: RenderConfig,
   onProgress: (p: ExportProgress) => void,
   signal?: { cancelled: boolean },
-): Promise<Blob> {
+): Promise<ExportResult> {
   const duration = totalDuration(cfg, timeline)
   // captureStream only ticks while the canvas is composited on-screen — but it
   // must not cover the map (that would freeze MapLibre). Park it as a small
@@ -171,5 +221,5 @@ async function encodeMediaRecorder(
   recorder.stop()
   const blob = await finished
   out.remove()
-  return blob
+  return { blob, ext: 'webm' }
 }
