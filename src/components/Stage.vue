@@ -288,7 +288,7 @@ onBeforeUnmount(() => {
   transform-origin: center center;
   border-radius: 14px;
   overflow: hidden;
-  background: #0b0f14;
+  background: #1c1812;
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
 }
 .map { position: absolute; inset: 0; }
@@ -302,7 +302,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  color: #cdd6e0;
+  color: #e9e1d2;
   font-size: 15px;
   background: rgba(8, 12, 17, 0.66);
   backdrop-filter: blur(2px);
@@ -318,19 +318,19 @@ onBeforeUnmount(() => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-.empty-hint { color: #7b8794; font-size: 15px; }
+.empty-hint { color: #b3a890; font-size: 15px; }
 .transport { display: flex; align-items: center; gap: 12px; width: min(560px, 100%); }
 .play { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 15px; cursor: pointer; flex: none; }
 .scrub { flex: 1; accent-color: var(--accent); }
-.time { font-variant-numeric: tabular-nums; font-size: 13px; color: #9aa7b4; min-width: 92px; text-align: right; }
+.time { font-variant-numeric: tabular-nums; font-size: 13px; color: #b3a890; min-width: 92px; text-align: right; }
 .export-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; width: min(560px, 100%); }
-.meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: #9aa7b4; }
+.meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: #b3a890; }
 .export { border: none; background: var(--accent); color: #fff; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; }
 .export:disabled { opacity: 0.5; cursor: default; }
-.cancel { border: 1px solid #3a4654; background: transparent; color: #cdd6e0; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
-.progress { flex: 1; height: 8px; background: #1c2530; border-radius: 4px; overflow: hidden; min-width: 160px; }
+.cancel { border: 1px solid #4a4234; background: transparent; color: #e9e1d2; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+.progress { flex: 1; height: 8px; background: #38322a; border-radius: 4px; overflow: hidden; min-width: 160px; }
 .bar { height: 100%; background: var(--accent); transition: width 0.1s linear; }
-.export-msg { font-size: 13px; color: #e6edf3; }
+.export-msg { font-size: 13px; color: #f4efe6; }
 .export-done { font-size: 13px; color: #5dd47f; }
 .export-overlay {
   position: fixed;
@@ -342,7 +342,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 14px;
   background: rgba(12, 17, 23, 0.92);
-  border: 1px solid #28333f;
+  border: 1px solid #4a4234;
   padding: 12px 18px;
   border-radius: 12px;
   width: min(520px, 92vw);

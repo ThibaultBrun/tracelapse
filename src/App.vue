@@ -314,10 +314,10 @@ onMounted(consumeStravaRedirect)
   align-items: baseline;
   gap: 14px;
   padding: 14px 20px;
-  border-bottom: 1px solid #1b2430;
+  border-bottom: 1px solid #3a342a;
 }
 .topbar h1 { font-size: 18px; margin: 0; }
-.tag { color: #8b97a4; font-size: 13px; margin: 0; flex: 1; }
+.tag { color: #b3a890; font-size: 13px; margin: 0; flex: 1; }
 .gh { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 13px; }
 .layout {
   display: grid;
@@ -327,8 +327,8 @@ onMounted(consumeStravaRedirect)
   align-items: start;
 }
 .panel {
-  background: #121821;
-  border: 1px solid #1d2733;
+  background: #2d2820;
+  border: 1px solid #3a342a;
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -341,7 +341,7 @@ onMounted(consumeStravaRedirect)
 .center { display: flex; justify-content: center; }
 .drop {
   display: block;
-  border: 2px dashed #2c3947;
+  border: 2px dashed #4a4234;
   border-radius: 10px;
   padding: 22px 12px;
   text-align: center;
@@ -350,8 +350,8 @@ onMounted(consumeStravaRedirect)
 .drop:hover { border-color: var(--accent); }
 .demo {
   background: transparent;
-  border: 1px solid #2c3947;
-  color: #cdd6e0;
+  border: 1px solid #4a4234;
+  color: #e9e1d2;
   padding: 9px;
   border-radius: 8px;
   cursor: pointer;
@@ -359,21 +359,21 @@ onMounted(consumeStravaRedirect)
 }
 .demo:hover { border-color: var(--accent); color: #fff; }
 .drop-inner { display: flex; flex-direction: column; gap: 4px; }
-.drop-inner strong { color: #e6edf3; }
-.drop-inner span { color: #7b8794; font-size: 12px; }
+.drop-inner strong { color: #f4efe6; }
+.drop-inner span { color: #b3a890; font-size: 12px; }
 .error { color: #ff6b6b; font-size: 13px; }
-.muted { color: #7b8794; font-size: 12px; }
+.muted { color: #b3a890; font-size: 12px; }
 .stats h3 { margin: 0 0 8px; font-size: 14px; }
 .stats ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .stats li { display: flex; justify-content: space-between; font-size: 13px; }
-.stats li span { color: #8b97a4; }
-.group h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #8b97a4; }
+.stats li span { color: #b3a890; }
+.group h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #b3a890; }
 .seg, .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .seg button, .presets button {
   flex: 1;
-  background: #1a222d;
-  border: 1px solid #28333f;
-  color: #cdd6e0;
+  background: #38322a;
+  border: 1px solid #4a4234;
+  color: #e9e1d2;
   padding: 7px 8px;
   border-radius: 7px;
   cursor: pointer;
@@ -382,32 +382,32 @@ onMounted(consumeStravaRedirect)
 .seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button {
-  background: #1a222d;
-  border: 1px solid #28333f;
-  color: #cdd6e0;
+  background: #38322a;
+  border: 1px solid #4a4234;
+  color: #e9e1d2;
   padding: 6px 10px;
   border-radius: 16px;
   cursor: pointer;
   font-size: 12px;
 }
 .chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #cdd6e0; margin: 6px 0 2px; }
+.row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #e9e1d2; margin: 6px 0 2px; }
 .row .val { color: var(--accent); }
-.ticks { display: flex; justify-content: space-between; color: #6b7682; font-size: 11px; }
-.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #cdd6e0; margin-top: 6px; }
+.ticks { display: flex; justify-content: space-between; color: #9c9078; font-size: 11px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #e9e1d2; margin-top: 6px; }
 input[type='range'] { width: 100%; accent-color: var(--accent); }
 select, .text {
   width: 100%;
-  background: #1a222d;
-  border: 1px solid #28333f;
-  color: #e6edf3;
+  background: #38322a;
+  border: 1px solid #4a4234;
+  color: #f4efe6;
   border-radius: 7px;
   padding: 7px;
   font-size: 13px;
 }
 .row select { width: auto; }
 input[type='color'] { width: 42px; height: 28px; border: none; background: none; padding: 0; }
-.sync h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #8b97a4; }
+.sync h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #b3a890; }
 .strava-btn {
   width: 100%;
   background: #fc4c02;
@@ -427,15 +427,15 @@ input[type='color'] { width: 42px; height: 28px; border: none; background: none;
   flex-direction: column;
   gap: 2px;
   padding: 7px 9px;
-  border: 1px solid #28333f;
+  border: 1px solid #4a4234;
   border-radius: 7px;
   cursor: pointer;
 }
 .acts li:hover { border-color: var(--accent); }
 .acts li.disabled { opacity: 0.4; cursor: default; }
-.acts li.disabled:hover { border-color: #28333f; }
-.acts .an { font-size: 13px; color: #e6edf3; }
-.acts .am { font-size: 11px; color: #8b97a4; }
+.acts li.disabled:hover { border-color: #4a4234; }
+.acts .an { font-size: 13px; color: #f4efe6; }
+.acts .am { font-size: 11px; color: #b3a890; }
 @media (max-width: 1100px) {
   .layout { grid-template-columns: 1fr; }
   .panel { max-height: none; }

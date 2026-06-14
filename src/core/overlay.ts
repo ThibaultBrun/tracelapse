@@ -71,9 +71,9 @@ export function drawOverlay(
     for (const kind of chips) {
       const v = widgetValue(kind, live, act.stats, cfg.units)
       const valStr = v.unit ? `${v.value} ${v.unit}` : v.value
-      ctx.font = `700 ${Math.round(base)}px system-ui, sans-serif`
+      ctx.font = `700 ${Math.round(base)}px Inter, system-ui, sans-serif`
       const valW = ctx.measureText(valStr).width
-      ctx.font = `600 ${Math.round(base * 0.62)}px system-ui, sans-serif`
+      ctx.font = `600 ${Math.round(base * 0.62)}px Inter, system-ui, sans-serif`
       const labW = ctx.measureText(v.label.toUpperCase()).width
       const cw = Math.max(valW, labW) + margin * 0.9
       if (x + cw > W - margin) break
@@ -84,7 +84,7 @@ export function drawOverlay(
 
   if (cfg.showTitle && cfg.title) {
     const ts = Math.round(base * 1.3)
-    ctx.font = `800 ${ts}px system-ui, sans-serif`
+    ctx.font = `800 ${ts}px Inter, system-ui, sans-serif`
     const tw = ctx.measureText(cfg.title).width
     panel(ctx, margin, margin, tw + margin, ts + margin * 0.8)
     ctx.fillStyle = '#fff'
@@ -92,14 +92,14 @@ export function drawOverlay(
     ctx.textAlign = 'left'
     ctx.fillText(cfg.title, margin + margin * 0.5, margin + margin * 0.4)
     if (act.sport) {
-      ctx.font = `600 ${Math.round(base * 0.7)}px system-ui, sans-serif`
+      ctx.font = `600 ${Math.round(base * 0.7)}px Inter, system-ui, sans-serif`
       ctx.fillStyle = 'rgba(255,255,255,0.75)'
       ctx.fillText(act.sport, margin + margin * 0.5, margin + margin * 0.4 + ts + 2)
     }
   }
 
   // Attribution (MapLibre's own is hidden in export; bake ours in).
-  ctx.font = `${Math.round(base * 0.5)}px system-ui, sans-serif`
+  ctx.font = `${Math.round(base * 0.5)}px Inter, system-ui, sans-serif`
   ctx.textAlign = 'right'
   ctx.textBaseline = 'bottom'
   const aw = ctx.measureText(o.attribution).width
@@ -118,7 +118,7 @@ export const SITE_URL = 'tracelapse.pista.bike'
 function drawCredit(ctx: CanvasRenderingContext2D, base: number) {
   const H = ctx.canvas.height
   const fs = Math.round(base * 0.6)
-  ctx.font = `700 ${fs}px system-ui, sans-serif`
+  ctx.font = `700 ${fs}px Inter, system-ui, sans-serif`
   const label = `© ${SITE_URL}`
   const w = ctx.measureText(label).width
   ctx.textAlign = 'left'
@@ -140,9 +140,9 @@ function drawIntroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, 
   ctx.globalAlpha = a
   // Legibility scrim.
   const grad = ctx.createLinearGradient(0, 0, 0, H)
-  grad.addColorStop(0, 'rgba(8,12,17,0.55)')
-  grad.addColorStop(0.5, 'rgba(8,12,17,0.15)')
-  grad.addColorStop(1, 'rgba(8,12,17,0.55)')
+  grad.addColorStop(0, 'rgba(20,17,12,0.6)')
+  grad.addColorStop(0.5, 'rgba(20,17,12,0.12)')
+  grad.addColorStop(1, 'rgba(20,17,12,0.6)')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, W, H)
 
@@ -153,7 +153,7 @@ function drawIntroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, 
   ctx.shadowBlur = base * 0.5
   // Title.
   const ts = Math.round(base * 2.1)
-  ctx.font = `800 ${ts}px system-ui, sans-serif`
+  ctx.font = `800 ${ts}px Inter, system-ui, sans-serif`
   ctx.fillStyle = '#fff'
   ctx.textBaseline = 'bottom'
   wrapText(ctx, cfg.title || '', cx, cy, W - margin * 4, ts * 1.1)
@@ -163,7 +163,7 @@ function drawIntroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, 
   ctx.fillRect(cx - base * 1.6, cy + base * 0.5, base * 3.2, Math.max(2, base * 0.12))
   // Summary.
   if (cfg.summary) {
-    ctx.font = `600 ${Math.round(base * 0.95)}px system-ui, sans-serif`
+    ctx.font = `600 ${Math.round(base * 0.95)}px Inter, system-ui, sans-serif`
     ctx.fillStyle = 'rgba(255,255,255,0.92)'
     ctx.textBaseline = 'top'
     ctx.shadowBlur = base * 0.4
@@ -205,10 +205,10 @@ function chip(
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
   ctx.fillStyle = 'rgba(255,255,255,0.7)'
-  ctx.font = `600 ${Math.round(base * 0.62)}px system-ui, sans-serif`
+  ctx.font = `600 ${Math.round(base * 0.62)}px Inter, system-ui, sans-serif`
   ctx.fillText(label, x + w * 0.12, y + h * 0.14)
   ctx.fillStyle = '#fff'
-  ctx.font = `700 ${Math.round(base)}px system-ui, sans-serif`
+  ctx.font = `700 ${Math.round(base)}px Inter, system-ui, sans-serif`
   ctx.fillText(value, x + w * 0.12, y + h * 0.42)
 }
 
@@ -221,7 +221,7 @@ function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.arcTo(x, y + h, x, y, r)
   ctx.arcTo(x, y, x + w, y, r)
   ctx.closePath()
-  ctx.fillStyle = 'rgba(15,20,26,0.62)'
+  ctx.fillStyle = 'rgba(37,33,26,0.66)'
   ctx.fill()
 }
 
@@ -287,7 +287,7 @@ function drawProfile(
   ctx.stroke()
 
   ctx.fillStyle = 'rgba(255,255,255,0.8)'
-  ctx.font = `600 ${Math.round(h * 0.16)}px system-ui, sans-serif`
+  ctx.font = `600 ${Math.round(h * 0.16)}px Inter, system-ui, sans-serif`
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
   ctx.fillText(`▲ ${Math.round(act.stats.totalGain)} m`, gx + 4, y + 4)

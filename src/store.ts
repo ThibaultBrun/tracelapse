@@ -49,7 +49,7 @@ export const state = reactive<State>({
     followZoom: 15.5,
     fitPadding: 0.18,
     trackColor: '#ffffff',
-    accentColor: '#fc5200',
+    accentColor: '#cda35a',
     trackWidth: 6,
     markerSize: 9,
     showFullRoute: true,

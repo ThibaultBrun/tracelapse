@@ -1,5 +1,13 @@
 :root {
-  --accent: #fc5200;
+  /* Pista theme: warm dark surfaces + gold accent. */
+  --accent: #cda35a;
+  --accent-hi: #f0cd8a;
+  --bg: #25211a;
+  --surface: #2d2820;
+  --surface-2: #38322a;
+  --border: #4a4234;
+  --text: #f4efe6;
+  --text-dim: #b3a890;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -8,11 +16,11 @@ html, body, #app {
   height: 100%;
 }
 body {
-  background: #0c1117;
-  color: #e6edf3;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-thumb { background: #2a3543; border-radius: 5px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
 button { font-family: inherit; }
