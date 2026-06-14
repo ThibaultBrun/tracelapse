@@ -8,6 +8,12 @@ export interface OverlayCtx {
   cfg: RenderConfig
   timeline: Timeline
   attribution: string
+  /** Pista trail the rider is currently on (evaluated per frame). */
+  currentTrail?: () => { name: string; difficulty: string | null } | null
+}
+
+const DIFF_COLOR: Record<string, string> = {
+  green: '#3aa14a', blue: '#2b7fff', red: '#e23b3b', black: '#111111',
 }
 
 /**
@@ -108,6 +114,7 @@ export function drawOverlay(
   }
 
   drawTopSpeed(ctx, o, idx, base)
+  drawTrailName(ctx, o, base)
 
   // Attribution (MapLibre's own is hidden in export; bake ours in).
   ctx.font = `${Math.round(base * 0.5)}px Inter, system-ui, sans-serif`
@@ -121,6 +128,52 @@ export function drawOverlay(
   ctx.textAlign = 'left'
 
   drawCredit(ctx, base)
+}
+
+/** Pill naming the Pista trail the rider is on, top-centre. */
+function drawTrailName(ctx: CanvasRenderingContext2D, o: OverlayCtx, base: number) {
+  const trail = o.currentTrail?.()
+  if (!trail) return
+  const W = ctx.canvas.width
+  const cx = W / 2
+  const y = ctx.canvas.height * 0.085
+  const color = (trail.difficulty && DIFF_COLOR[trail.difficulty]) || o.cfg.accentColor
+  const label = trail.name
+  ctx.save()
+  ctx.font = `800 ${Math.round(base * 0.85)}px Inter, system-ui, sans-serif`
+  const tw = ctx.measureText(label).width
+  const padX = base * 0.9
+  const dotR = base * 0.42
+  const h = base * 1.8
+  const w = tw + padX * 2 + dotR * 2 + base * 0.5
+  const x = cx - w / 2
+  // Pill.
+  const r = h / 2
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(20,17,12,0.78)'
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.shadowBlur = base * 0.4
+  ctx.fill()
+  ctx.shadowBlur = 0
+  // Difficulty dot.
+  ctx.beginPath()
+  ctx.arc(x + padX + dotR, y + h / 2, dotR, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.fill()
+  // Name.
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, x + padX + dotR * 2 + base * 0.5, y + h / 2 + base * 0.04)
+  ctx.restore()
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
 }
 
 /** Flash a "TOP SPEED" badge as the rider reaches the activity's peak speed. */

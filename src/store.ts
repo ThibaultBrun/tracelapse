@@ -1,7 +1,12 @@
-import { reactive } from 'vue'
+import { reactive, shallowRef } from 'vue'
 import type { Activity, RenderConfig, TimelineConfig, WidgetKind } from './core/types'
 import { parseTrack } from './core/gpx'
 import { buildActivity } from './core/metrics'
+import { loadPistaTrails, type PistaTrails } from './pista'
+
+/** Loaded Pista trails for the current activity (set asynchronously). */
+export const pistaTrails = shallowRef<PistaTrails | null>(null)
+let loadToken = 0
 
 export interface ResolutionPreset {
   label: string
@@ -67,6 +72,7 @@ export const state = reactive<State>({
     showOutro: true,
     outroDuration: 4,
     summaryStats: ['distance', 'duration', 'gain', 'avgSpeed'],
+    showPistaTrails: true,
   },
   timeline: {
     mode: 'speed',
@@ -84,6 +90,14 @@ export function loadGpxText(text: string, fileName: string) {
   state.activity = act
   state.render.title = act.name
   state.render.summaryStats = autoSummary(act)
+  // Fetch nearby Pista trails in the background; ignore if a newer activity loads.
+  pistaTrails.value = null
+  const token = ++loadToken
+  void loadPistaTrails(act)
+    .then((p) => {
+      if (token === loadToken) pistaTrails.value = p
+    })
+    .catch(() => {})
   // Auto-pick sensible widgets based on what the activity carries.
   state.render.widgets = autoWidgets(act)
   // Default to a target duration that feels good.

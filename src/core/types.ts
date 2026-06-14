@@ -137,6 +137,8 @@ export interface RenderConfig {
   outroDuration: number
   /** Which summary stats appear on the intro/outro cards. */
   summaryStats: string[]
+  /** Overlay nearby Pista trails and name the one the rider is on. */
+  showPistaTrails: boolean
 }
 
 export interface TimelineConfig {

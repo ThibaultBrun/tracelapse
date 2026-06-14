@@ -2,6 +2,7 @@ import maplibregl from 'maplibre-gl'
 import type { Activity, RenderConfig } from './types'
 import type { Timeline } from './timeline'
 import { styleById } from './tiles'
+import { DIFFICULTY_COLOR, type PistaTrails } from '../pista'
 
 // Public Terrarium DEM (CORS-enabled) — works same on the VPS alias and GH Pages.
 const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
@@ -18,6 +19,11 @@ export class MapScene {
   private smoothBearing: Float64Array // unwrapped, can exceed [0,360)
   private smoothLng: Float64Array
   private smoothLat: Float64Array
+  // Pista trails overlay.
+  private pistaInfo: Record<string, { name: string; difficulty: string | null }> = {}
+  private pistaMatched: (string | null)[] = []
+  private currentTrailId: string | null = null
+  private _currentTrail: { name: string; difficulty: string | null } | null = null
 
   constructor(
     container: HTMLElement,
@@ -128,6 +134,7 @@ export class MapScene {
 
   setConfig(cfg: RenderConfig) {
     const prevStyle = this.cfg.mapStyleId
+    const prevPista = this.cfg.showPistaTrails
     this.cfg = cfg
     const style = styleById(cfg.mapStyleId)
     if (cfg.mapStyleId !== prevStyle) {
@@ -145,6 +152,7 @@ export class MapScene {
     this.map.setPaintProperty('head-glow', 'circle-color', cfg.accentColor)
     this.map.setTerrain(cfg.terrain3d ? { source: 'dem', exaggeration: cfg.terrainExaggeration } : null)
     if (this.map.isStyleLoaded()) this.applyMarkerIcon()
+    if (cfg.showPistaTrails !== prevPista) this.renderPista()
     this.fitCam = null // recompute fit camera (padding/size may have changed)
   }
 
@@ -210,6 +218,70 @@ export class MapScene {
 
   setTimeline(t: Timeline) {
     this.timeline = t
+  }
+
+  /** Provide (or clear) the nearby Pista trails to overlay + match against. */
+  setPista(pt: PistaTrails | null) {
+    this.pistaData = pt
+    this.renderPista()
+  }
+
+  private pistaData: PistaTrails | null = null
+
+  private renderPista() {
+    for (const id of ['pista-hl', 'pista-trails']) if (this.map.getLayer(id)) this.map.removeLayer(id)
+    if (this.map.getSource('pista')) this.map.removeSource('pista')
+    this.pistaInfo = {}
+    this.pistaMatched = []
+    this.currentTrailId = null
+    this._currentTrail = null
+    const pt = this.pistaData
+    if (!pt || !this.cfg.showPistaTrails) return
+    this.pistaInfo = pt.info
+    this.pistaMatched = pt.matched
+    this.map.addSource('pista', { type: 'geojson', data: pt.geojson as GeoJSON.GeoJSON })
+    const before = this.map.getLayer('route') ? 'route' : undefined
+    const diffColor: maplibregl.ExpressionSpecification = [
+      'match', ['get', 'difficulty'],
+      'green', DIFFICULTY_COLOR.green, 'blue', DIFFICULTY_COLOR.blue,
+      'red', DIFFICULTY_COLOR.red, 'black', DIFFICULTY_COLOR.black,
+      this.cfg.accentColor,
+    ]
+    this.map.addLayer(
+      {
+        id: 'pista-trails',
+        type: 'line',
+        source: 'pista',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': diffColor, 'line-width': 2, 'line-opacity': 0.35 },
+      },
+      before,
+    )
+    this.map.addLayer(
+      {
+        id: 'pista-hl',
+        type: 'line',
+        source: 'pista',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        filter: ['==', ['get', 'id'], '__none__'],
+        paint: { 'line-color': diffColor, 'line-width': this.cfg.trackWidth + 3, 'line-opacity': 0.95 },
+      },
+      before,
+    )
+  }
+
+  private updateTrail(idx: number) {
+    const id =
+      idx >= 0 && this.pistaMatched.length ? this.pistaMatched[Math.round(idx)] ?? null : null
+    if (id === this.currentTrailId) return
+    this.currentTrailId = id
+    this._currentTrail = id ? this.pistaInfo[id] ?? null : null
+    if (this.map.getLayer('pista-hl')) this.map.setFilter('pista-hl', ['==', ['get', 'id'], id ?? '__none__'])
+  }
+
+  /** Name + difficulty of the Pista trail the rider is currently on (or null). */
+  get currentTrail(): { name: string; difficulty: string | null } | null {
+    return this._currentTrail
   }
 
   /**
@@ -312,16 +384,19 @@ export class MapScene {
   seek(videoT: number) {
     const intro = this.introDuration
     if (intro > 0 && videoT < intro) {
+      this.updateTrail(-1)
       this.seekIntro(Math.max(0, videoT / intro))
       return
     }
     const main = this.timeline.videoDuration
     const afterIntro = videoT - intro
     if (this.outroDuration > 0 && afterIntro > main) {
+      this.updateTrail(-1)
       this.seekOutro(Math.min(1, (afterIntro - main) / this.outroDuration))
       return
     }
     const idx = this.timeline.indexAtVideoTime(afterIntro)
+    this.updateTrail(idx)
     // Smoothed marker position: glides along the track (no GPS step jitter) and
     // stays locked to the camera centre.
     const headLngLat: LngLat = [this.interpArr(this.smoothLng, idx), this.interpArr(this.smoothLat, idx)]

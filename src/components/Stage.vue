@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { state } from '../store'
+import { pistaTrails, state } from '../store'
 import { MapScene } from '../core/mapscene'
 import { Timeline, totalDuration } from '../core/timeline'
 import { drawOverlay, type OverlayCtx } from '../core/overlay'
@@ -56,6 +56,7 @@ function ovCtx(): OverlayCtx {
     cfg: state.render,
     timeline: timeline.value!,
     attribution: scene.value!.attribution,
+    currentTrail: () => scene.value?.currentTrail ?? null,
   }
 }
 
@@ -80,6 +81,7 @@ async function rebuild() {
   scene.value = sc
   refreshMeta()
   await sc.ready
+  sc.setPista(pistaTrails.value)
   videoTime.value = 0
   sc.seek(0)
   drawOv()
@@ -88,6 +90,16 @@ async function rebuild() {
 }
 
 watch(() => state.activity, rebuild)
+
+// Pista trails arrive asynchronously after the activity loads.
+watch(pistaTrails, (pt) => {
+  // Apply once the map style is loaded (independent of the `ready` flag timing).
+  if (scene.value?.map.isStyleLoaded()) {
+    scene.value.setPista(pt)
+    scene.value.seek(videoTime.value)
+    drawOv()
+  }
+})
 
 watch(
   () => [state.render.width, state.render.height],

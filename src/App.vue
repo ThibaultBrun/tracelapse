@@ -231,6 +231,9 @@ onMounted(consumeStravaRedirect)
           <label class="check">
             <input type="checkbox" v-model="state.render.rotateWithHeading" /> Rotate camera with direction
           </label>
+          <label class="check">
+            <input type="checkbox" v-model="state.render.showPistaTrails" /> Highlight Pista trails (name them)
+          </label>
         </section>
 
         <section class="group">

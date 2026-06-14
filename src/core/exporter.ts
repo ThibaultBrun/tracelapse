@@ -37,7 +37,7 @@ export async function exportVideo(
   out.width = cfg.width
   out.height = cfg.height
   const ctx = out.getContext('2d', { alpha: false })!
-  const overlayCtx: OverlayCtx = { act, cfg, timeline, attribution: scene.attribution }
+  const overlayCtx: OverlayCtx = { act, cfg, timeline, attribution: scene.attribution, currentTrail: () => scene.currentTrail }
 
   const composeFrame = async (t: number) => {
     scene.seek(t)
