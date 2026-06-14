@@ -78,7 +78,7 @@ export const state = reactive<State>({
     mode: 'speed',
     speed: 20,
     targetDuration: 20,
-    pacing: 1, // follow real speed by default (pauses still removed via playT)
+    pacing: 0, // constant-distance pacing by default (smoothest; 0% speed)
   },
 })
 
