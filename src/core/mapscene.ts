@@ -1,7 +1,6 @@
 import maplibregl from 'maplibre-gl'
 import type { Activity, RenderConfig } from './types'
 import type { Timeline } from './timeline'
-import { sampleAt } from './metrics'
 import { styleById } from './tiles'
 
 // Public Terrarium DEM (CORS-enabled) — works same on the VPS alias and GH Pages.
@@ -22,7 +21,7 @@ export class MapScene {
 
   constructor(
     container: HTMLElement,
-    private act: Activity,
+    act: Activity,
     private cfg: RenderConfig,
     private timeline: Timeline,
   ) {
@@ -220,17 +219,24 @@ export class MapScene {
    */
   private buildSmoothTracks() {
     const n = this.coords.length
-    // Heading from a long look-ahead chord (direction toward a point ~ahead),
-    // not between adjacent points — a wiggly/noisy path then reads as one
-    // smooth general direction instead of constant micro-corrections.
-    const look = Math.min(80, Math.max(4, Math.round(n * 0.05)))
+    const lng = this.coords.map((c) => c[0])
+    const lat = this.coords.map((c) => c[1])
+
+    // MACRO trajectory: heavily smoothed so dense switchbacks collapse into the
+    // general direction of travel. Bearing read from this points "west" the whole
+    // way down a west-bound switchback piste, and only reverses when the rider
+    // genuinely doubles back (the macro path itself reverses).
+    const macroWin = Math.min(260, Math.max(20, Math.round(n * 0.08)))
+    const mLng = movAvgArr(lng, macroWin)
+    const mLat = movAvgArr(lat, macroWin)
+    const look = Math.min(120, Math.max(6, Math.round(n * 0.04)))
     const raw = new Float64Array(n)
     for (let i = 0; i < n; i++) {
-      const a = Math.max(0, i - Math.round(look / 2))
-      const b = Math.min(n - 1, i + Math.round(look / 2))
-      raw[i] = this.rawBearing(a, b === a ? Math.min(n - 1, a + 1) : b)
+      const a = Math.max(0, i - look)
+      const b = Math.min(n - 1, i + look)
+      raw[i] = bearingLL(mLng[a], mLat[a], mLng[b], mLat[b])
     }
-    // Unwrap to a continuous angle so averaging doesn't break at the 360→0 seam.
+    // Unwrap so averaging doesn't break at the 360→0 seam.
     const unwrapped = new Float64Array(n)
     unwrapped[0] = raw[0]
     for (let i = 1; i < n; i++) {
@@ -238,27 +244,15 @@ export class MapScene {
       d = (((d + 180) % 360) + 360) % 360 - 180
       unwrapped[i] = unwrapped[i - 1] + d
     }
-    const bWin = Math.min(200, Math.max(15, Math.round(n * 0.1)))
-    const cWin = Math.min(24, Math.max(3, Math.round(n * 0.008)))
-    const lng = this.coords.map((c) => c[0])
-    const lat = this.coords.map((c) => c[1])
-    // Two averaging passes for an extra-smooth, "asservi" glide.
+    const bWin = Math.min(160, Math.max(11, Math.round(n * 0.05)))
+    // POSITION for marker + camera: lightly smoothed only (kills GPS jitter, keeps
+    // the point on the track) so the dot glides instead of stepping.
+    const pWin = Math.min(15, Math.max(3, Math.round(n * 0.01)))
     return {
-      bearing: movAvg(movAvg(unwrapped, bWin), bWin),
-      lng: movAvgArr(lng, cWin),
-      lat: movAvgArr(lat, cWin),
+      bearing: movAvg(unwrapped, bWin),
+      lng: movAvgArr(lng, pWin),
+      lat: movAvgArr(lat, pWin),
     }
-  }
-
-  private rawBearing(i: number, j: number): number {
-    const [lon1, lat1] = this.coords[i]
-    const [lon2, lat2] = this.coords[j]
-    const φ1 = (lat1 * Math.PI) / 180
-    const φ2 = (lat2 * Math.PI) / 180
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180
-    const y = Math.sin(Δλ) * Math.cos(φ2)
-    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
-    return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
   }
 
   private interpArr(arr: Float64Array, idx: number): number {
@@ -275,8 +269,9 @@ export class MapScene {
       return
     }
     const idx = this.timeline.indexAtVideoTime(videoT - intro)
-    const head = sampleAt(this.act, idx)
-    const headLngLat: LngLat = [head.lon, head.lat]
+    // Smoothed marker position: glides along the track (no GPS step jitter) and
+    // stays locked to the camera centre.
+    const headLngLat: LngLat = [this.interpArr(this.smoothLng, idx), this.interpArr(this.smoothLat, idx)]
 
     const upto = Math.floor(idx)
     const travelled = this.coords.slice(0, upto + 1)
@@ -286,14 +281,13 @@ export class MapScene {
     ;(this.map.getSource('head') as maplibregl.GeoJSONSource).setData(this.pointFeature(headLngLat))
 
     if (this.cfg.camera === 'follow') {
-      // Camera follows a smoothed centre + bearing (the marker stays on the
-      // exact track); gives an "asservi", gliding chase-cam instead of snapping.
+      // Camera glides on the smoothed centre; bearing follows the MACRO heading
+      // (steady through switchbacks, half-turns only on a real direction reversal)
+      // when enabled, else steady north-up.
       this.map.jumpTo({
-        center: [this.interpArr(this.smoothLng, idx), this.interpArr(this.smoothLat, idx)],
+        center: headLngLat,
         zoom: this.cfg.followZoom,
         pitch: this.cfg.terrain3d ? this.cfg.pitch : 0,
-        // North-up by default (steady, no jerk in switchbacks); only rotate to
-        // the heading when the user opts in.
         bearing: this.cfg.rotateWithHeading ? this.interpArr(this.smoothBearing, idx) : 0,
       })
     } else {
@@ -392,6 +386,16 @@ function movAvg(arr: Float64Array, win: number): Float64Array {
 
 function movAvgArr(arr: number[], win: number): Float64Array {
   return movAvg(Float64Array.from(arr), win)
+}
+
+/** Initial bearing (deg) from point A to point B. */
+function bearingLL(lon1: number, lat1: number, lon2: number, lat2: number): number {
+  const φ1 = (lat1 * Math.PI) / 180
+  const φ2 = (lat2 * Math.PI) / 180
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
 }
 
 /** Rasterise an emoji into ImageData so it can be a MapLibre marker image. */

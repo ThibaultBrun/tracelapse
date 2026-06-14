@@ -60,7 +60,7 @@ export const state = reactive<State>({
     terrain3d: true,
     pitch: 62,
     terrainExaggeration: 1.4,
-    rotateWithHeading: false,
+    rotateWithHeading: true,
     markerIcon: 'dot',
     showIntro: true,
     introDuration: 2.6,
