@@ -261,14 +261,67 @@ export class MapScene {
     return arr[i0] + (arr[i1] - arr[i0]) * (idx - i0)
   }
 
-  /** Position the map + route reveal for a given video time (intro included). */
+  get outroDuration(): number {
+    return this.cfg.showOutro ? Math.max(0, this.cfg.outroDuration) : 0
+  }
+
+  /** Camera framing the whole route (cached); pitch flattened a bit. */
+  private getFitCam(): { center: LngLat; zoom: number } {
+    if (!this.fitCam) {
+      const b = new maplibregl.LngLatBounds(this.coords[0], this.coords[0])
+      for (const c of this.coords) b.extend(c)
+      const cam = this.map.cameraForBounds(b, { padding: Math.round(this.map.getCanvas().width * this.cfg.fitPadding) })
+      if (cam && cam.center) {
+        const c = maplibregl.LngLat.convert(cam.center)
+        this.fitCam = { center: [c.lng, c.lat], zoom: cam.zoom ?? this.cfg.followZoom }
+      } else {
+        this.fitCam = { center: this.coords[0], zoom: this.cfg.followZoom }
+      }
+    }
+    return this.fitCam
+  }
+
+  /** Outro: ease from the end-of-ride follow camera out to frame the whole route. */
+  private seekOutro(p: number) {
+    const e = p * p * p * (p * (p * 6 - 15) + 10)
+    const last = this.coords.length - 1
+    const from = {
+      lng: this.interpArr(this.smoothLng, last),
+      lat: this.interpArr(this.smoothLat, last),
+      zoom: this.cfg.followZoom,
+      pitch: this.cfg.terrain3d ? this.cfg.pitch : 0,
+      bearing: this.cfg.rotateWithHeading ? this.interpArr(this.smoothBearing, last) : 0,
+    }
+    const fit = this.getFitCam()
+    const toZoom = fit.zoom - 0.5 // extra breathing room around the route
+    const toPitch = this.cfg.terrain3d ? Math.min(this.cfg.pitch, 35) : 0
+    // Full route revealed, marker at the finish.
+    ;(this.map.getSource('travelled') as maplibregl.GeoJSONSource).setData(this.lineFeature(this.coords))
+    ;(this.map.getSource('head') as maplibregl.GeoJSONSource).setData(
+      this.pointFeature([from.lng, from.lat]),
+    )
+    this.map.jumpTo({
+      center: [from.lng + (fit.center[0] - from.lng) * e, from.lat + (fit.center[1] - from.lat) * e],
+      zoom: from.zoom + (toZoom - from.zoom) * e,
+      pitch: from.pitch + (toPitch - from.pitch) * e,
+      bearing: from.bearing * (1 - e),
+    })
+  }
+
+  /** Position the map + route reveal for a given video time (intro + outro incl.). */
   seek(videoT: number) {
     const intro = this.introDuration
     if (intro > 0 && videoT < intro) {
       this.seekIntro(Math.max(0, videoT / intro))
       return
     }
-    const idx = this.timeline.indexAtVideoTime(videoT - intro)
+    const main = this.timeline.videoDuration
+    const afterIntro = videoT - intro
+    if (this.outroDuration > 0 && afterIntro > main) {
+      this.seekOutro(Math.min(1, (afterIntro - main) / this.outroDuration))
+      return
+    }
+    const idx = this.timeline.indexAtVideoTime(afterIntro)
     // Smoothed marker position: glides along the track (no GPS step jitter) and
     // stays locked to the camera centre.
     const headLngLat: LngLat = [this.interpArr(this.smoothLng, idx), this.interpArr(this.smoothLat, idx)]
@@ -291,20 +344,10 @@ export class MapScene {
         bearing: this.cfg.rotateWithHeading ? this.interpArr(this.smoothBearing, idx) : 0,
       })
     } else {
-      if (!this.fitCam) {
-        const b = new maplibregl.LngLatBounds(this.coords[0], this.coords[0])
-        for (const c of this.coords) b.extend(c)
-        const cam = this.map.cameraForBounds(b, { padding: Math.round(this.map.getCanvas().width * this.cfg.fitPadding) })
-        if (cam && cam.center) {
-          const c = maplibregl.LngLat.convert(cam.center)
-          this.fitCam = { center: [c.lng, c.lat], zoom: cam.zoom ?? this.cfg.followZoom }
-        } else {
-          this.fitCam = { center: this.coords[0], zoom: this.cfg.followZoom }
-        }
-      }
+      const fit = this.getFitCam()
       this.map.jumpTo({
-        center: this.fitCam.center,
-        zoom: this.fitCam.zoom,
+        center: fit.center,
+        zoom: fit.zoom,
         pitch: this.cfg.terrain3d ? Math.min(this.cfg.pitch, 50) : 0,
         bearing: 0,
       })

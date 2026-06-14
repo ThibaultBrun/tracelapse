@@ -131,7 +131,11 @@ export interface RenderConfig {
   showIntro: boolean
   /** Intro duration in seconds. */
   introDuration: number
-  /** One-line summary shown under the title in the intro. */
+  /** Outro: zoom back out to frame the whole route, with summary + site address. */
+  showOutro: boolean
+  /** Outro duration in seconds. */
+  outroDuration: number
+  /** One-line summary shown under the title in the intro/outro. */
   summary: string
 }
 

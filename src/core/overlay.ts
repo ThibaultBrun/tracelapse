@@ -39,7 +39,16 @@ export function drawOverlay(
     return
   }
 
-  const idx = timeline.indexAtVideoTime(videoT - introDur)
+  // Outro: pull back to the whole route with summary + big site address.
+  const outroDur = cfg.showOutro ? Math.max(0, cfg.outroDuration) : 0
+  const afterIntro = videoT - introDur
+  if (outroDur > 0 && afterIntro > timeline.videoDuration) {
+    drawOutroCard(ctx, o, Math.min(1, (afterIntro - timeline.videoDuration) / outroDur), base, margin)
+    drawCredit(ctx, base)
+    return
+  }
+
+  const idx = timeline.indexAtVideoTime(afterIntro)
   const p = sampleAt(act, idx)
   const live: LiveSample = {
     speed: p.speed,
@@ -227,6 +236,55 @@ function drawIntroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, 
   }
   ctx.restore()
   ctx.textAlign = 'left'
+  ctx.shadowBlur = 0
+}
+
+/** Outro card: summary + big site address as the camera pulls back. */
+function drawOutroCard(ctx: CanvasRenderingContext2D, o: OverlayCtx, p: number, base: number, margin: number) {
+  const { cfg } = o
+  const W = ctx.canvas.width
+  const H = ctx.canvas.height
+  const a = p < 0.22 ? p / 0.22 : 1 // fade in, then hold to the end
+  ctx.save()
+  ctx.globalAlpha = a
+  const grad = ctx.createLinearGradient(0, 0, 0, H)
+  grad.addColorStop(0, 'rgba(20,17,12,0.62)')
+  grad.addColorStop(0.5, 'rgba(20,17,12,0.18)')
+  grad.addColorStop(1, 'rgba(20,17,12,0.68)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, W, H)
+
+  const cx = W / 2
+  const cy = H * 0.4
+  ctx.textAlign = 'center'
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'
+  ctx.shadowBlur = base * 0.5
+
+  if (cfg.title) {
+    ctx.font = `800 ${Math.round(base * 1.5)}px Inter, system-ui, sans-serif`
+    ctx.fillStyle = '#fff'
+    ctx.textBaseline = 'bottom'
+    wrapText(ctx, cfg.title, cx, cy - base * 0.4, W - margin * 4, base * 1.6)
+  }
+  if (cfg.summary) {
+    ctx.font = `600 ${Math.round(base * 0.95)}px Inter, system-ui, sans-serif`
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    ctx.textBaseline = 'top'
+    ctx.fillText(cfg.summary, cx, cy)
+  }
+  // Big site address.
+  ctx.shadowBlur = 0
+  ctx.fillStyle = cfg.accentColor
+  ctx.fillRect(cx - base * 2, cy + base * 2, base * 4, Math.max(2, base * 0.12))
+  ctx.shadowColor = cfg.accentColor
+  ctx.shadowBlur = base * 1.2
+  ctx.fillStyle = '#fff'
+  ctx.font = `800 ${Math.round(base * 1.8)}px Inter, system-ui, sans-serif`
+  ctx.textBaseline = 'top'
+  ctx.fillText(SITE_URL, cx, cy + base * 2.5)
+  ctx.restore()
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
   ctx.shadowBlur = 0
 }
 

@@ -69,9 +69,11 @@ export class Timeline {
   }
 }
 
-/** Full video length including the intro fly-in. */
+/** Full video length including the intro fly-in and the outro pull-back. */
 export function totalDuration(cfg: RenderConfig, tl: Timeline): number {
-  return (cfg.showIntro ? Math.max(0, cfg.introDuration) : 0) + tl.videoDuration
+  const intro = cfg.showIntro ? Math.max(0, cfg.introDuration) : 0
+  const outro = cfg.showOutro ? Math.max(0, cfg.outroDuration) : 0
+  return intro + tl.videoDuration + outro
 }
 
 // --- Exponential speed slider helpers (x1 .. x200) ---

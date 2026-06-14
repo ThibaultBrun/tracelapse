@@ -266,13 +266,18 @@ onMounted(consumeStravaRedirect)
         </section>
 
         <section class="group">
-          <h4>Intro</h4>
-          <label class="check"><input type="checkbox" v-model="state.render.showIntro" /> Title intro (zoom from space)</label>
+          <h4>Intro &amp; outro</h4>
+          <label class="check"><input type="checkbox" v-model="state.render.showIntro" /> Intro (zoom from space + title)</label>
           <template v-if="state.render.showIntro">
-            <label class="row"><span>Length</span><b class="val">{{ state.render.introDuration.toFixed(1) }}s</b></label>
+            <label class="row"><span>Intro length</span><b class="val">{{ state.render.introDuration.toFixed(1) }}s</b></label>
             <input type="range" min="1" max="6" step="0.1" v-model.number="state.render.introDuration" />
-            <input class="text" type="text" v-model="state.render.summary" placeholder="Summary line" />
           </template>
+          <label class="check"><input type="checkbox" v-model="state.render.showOutro" /> Outro (zoom out + site address)</label>
+          <template v-if="state.render.showOutro">
+            <label class="row"><span>Outro length</span><b class="val">{{ state.render.outroDuration.toFixed(1) }}s</b></label>
+            <input type="range" min="1" max="6" step="0.1" v-model.number="state.render.outroDuration" />
+          </template>
+          <input class="text" type="text" v-model="state.render.summary" placeholder="Summary line" />
         </section>
 
         <section class="group">

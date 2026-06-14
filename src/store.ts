@@ -64,6 +64,8 @@ export const state = reactive<State>({
     markerIcon: 'dot',
     showIntro: true,
     introDuration: 2.6,
+    showOutro: true,
+    outroDuration: 2.8,
     summary: '',
   },
   timeline: {
