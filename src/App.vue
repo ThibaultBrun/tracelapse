@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Stage from './components/Stage.vue'
 import {
   RESOLUTIONS,
@@ -10,14 +10,17 @@ import {
 } from './store'
 import {
   connectStrava,
+  connectStravaLink,
   consumeStravaRedirect,
   disconnectStrava,
-  fetchStravaActivities,
+  fetchAccountActivities,
+  loadActivityById,
   loadStravaActivity,
+  refreshAccount,
   strava,
-  stravaConnected,
   type StravaActivity,
 } from './strava'
+import { auth, signIn, signInGoogle, signOut, signUp } from './supa'
 import { MAP_STYLES } from './core/tiles'
 import { SUMMARY_CATALOG, WIDGET_CATALOG } from './core/widgets'
 import { SPEED_MAX, SPEED_MIN, sliderToSpeed, speedToSlider } from './core/timeline'
@@ -95,7 +98,42 @@ const MARKER_ICONS = [
   '🏄', '🛶', '🚣', '🪁', '⛵', '🤿', '🏊', '📍',
 ]
 
-onMounted(consumeStravaRedirect)
+// --- Pista account auth ---
+const email = ref('')
+const password = ref('')
+const authMode = ref<'login' | 'signup'>('login')
+const authBusy = ref(false)
+const authErr = ref('')
+
+async function doAuth() {
+  authBusy.value = true
+  authErr.value = ''
+  try {
+    const { error } = authMode.value === 'login' ? await signIn(email.value, password.value) : await signUp(email.value, password.value)
+    if (error) authErr.value = error.message
+    else if (authMode.value === 'signup') authErr.value = 'Compte créé — vérifie tes mails pour confirmer, puis connecte-toi.'
+  } finally {
+    authBusy.value = false
+  }
+}
+const pendingActivity = new URLSearchParams(location.search).get('a')
+
+watch(
+  () => auth.user,
+  (u) => {
+    if (u) {
+      refreshAccount().then(() => {
+        if (pendingActivity) loadActivityById(pendingActivity)
+      })
+    } else {
+      strava.linked = false
+    }
+  },
+)
+
+onMounted(() => {
+  consumeStravaRedirect()
+})
 </script>
 
 <template>
@@ -140,31 +178,56 @@ onMounted(consumeStravaRedirect)
         </section>
 
         <section class="sync">
-          <h4>🔗 Strava</h4>
-          <template v-if="!stravaConnected()">
-            <button class="strava-btn" @click="connectStrava">Connect with Strava</button>
-            <p v-if="strava.error" class="error">⚠ {{ strava.error }}</p>
+          <h4>🔗 Strava + alertes</h4>
+
+          <!-- Not signed in to a Pista account -->
+          <template v-if="!auth.user">
+            <p class="muted">Connecte-toi à ton compte Pista pour lier Strava et recevoir un mail à chaque nouvelle sortie.</p>
+            <input class="text" type="email" v-model="email" placeholder="Email" autocomplete="email" />
+            <input class="text" type="password" v-model="password" placeholder="Mot de passe" autocomplete="current-password" @keyup.enter="doAuth" />
+            <button class="strava-btn pista" :disabled="authBusy" @click="doAuth">
+              {{ authMode === 'login' ? 'Se connecter' : 'Créer un compte' }}
+            </button>
+            <div class="authrow">
+              <button class="link" @click="authMode = authMode === 'login' ? 'signup' : 'login'">
+                {{ authMode === 'login' ? 'Créer un compte' : 'J\'ai déjà un compte' }}
+              </button>
+              <button class="link" @click="signInGoogle">Google</button>
+            </div>
+            <p v-if="authErr" class="muted">{{ authErr }}</p>
+            <p class="muted sep">ou juste pour cette session :</p>
+            <button class="link" @click="connectStrava">Connecter Strava (sans compte)</button>
           </template>
+
+          <!-- Signed in -->
           <template v-else>
             <div class="strava-head">
-              <span class="muted">Connected{{ strava.athlete ? ` · ${strava.athlete}` : '' }}</span>
-              <button class="link" @click="disconnectStrava">disconnect</button>
+              <span class="muted">{{ auth.user.email }}</span>
+              <button class="link" @click="signOut">déconnexion</button>
             </div>
-            <button class="link" :disabled="strava.loading" @click="fetchStravaActivities">↻ Refresh</button>
-            <p v-if="strava.loading" class="muted">Loading activities…</p>
-            <p v-if="strava.error" class="error">⚠ {{ strava.error }}</p>
-            <ul class="acts">
-              <li
-                v-for="a in strava.activities"
-                :key="a.id"
-                :class="{ disabled: !a.has_latlng }"
-                @click="a.has_latlng && pickStrava(a)"
-              >
-                <span class="an">{{ a.name }}</span>
-                <span class="am">{{ fmtDate(a.start_date_local) }} · {{ fmtKm(a.distance) }} km{{ a.has_latlng ? '' : ' · no GPS' }}</span>
-              </li>
-            </ul>
+            <button v-if="!strava.linked" class="strava-btn" @click="connectStravaLink">Connecter Strava & être prévenu</button>
+            <template v-else>
+              <div class="strava-head">
+                <span class="muted">✅ Strava lié{{ strava.accountAthlete ? ` · ${strava.accountAthlete}` : '' }} · alertes ON</span>
+                <button class="link" @click="disconnectStrava">délier</button>
+              </div>
+              <button class="link" :disabled="strava.loading" @click="fetchAccountActivities">↻ Rafraîchir mes activités</button>
+            </template>
           </template>
+
+          <p v-if="strava.error" class="error">⚠ {{ strava.error }}</p>
+          <p v-if="strava.loading" class="muted">Chargement…</p>
+          <ul v-if="strava.activities.length" class="acts">
+            <li
+              v-for="a in strava.activities"
+              :key="a.id"
+              :class="{ disabled: !a.has_latlng }"
+              @click="a.has_latlng && pickStrava(a)"
+            >
+              <span class="an">{{ a.name }}</span>
+              <span class="am">{{ fmtDate(a.start_date_local) }} · {{ fmtKm(a.distance) }} km{{ a.has_latlng ? '' : ' · sans GPS' }}</span>
+            </li>
+          </ul>
         </section>
       </aside>
 
@@ -437,7 +500,10 @@ input[type='color'] { width: 42px; height: 28px; border: none; background: none;
   font-weight: 700;
   cursor: pointer;
 }
-.strava-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.strava-btn.pista { background: var(--accent); color: #2a2113; margin-top: 6px; }
+.authrow { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
+.sep { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.strava-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
 .link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0; }
 .link:disabled { opacity: 0.5; }
 .acts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
