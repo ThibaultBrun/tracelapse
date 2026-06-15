@@ -86,18 +86,27 @@ export function drawOverlay(
     // Size each chip to its widest possible value (from the activity's maxima),
     // so chips never resize/jump as the digit count changes mid-animation.
     const peak = peakSample(act.stats, timeline.realDuration)
+    const valFont = `700 ${Math.round(base)}px Inter, system-ui, sans-serif`
+    const labFont = `600 ${Math.round(base * 0.62)}px Inter, system-ui, sans-serif`
+    const padX = base * 0.55
+    const unitGap = base * 0.22
     for (const kind of chips) {
       const v = widgetValue(kind, live, act.stats, cfg.units)
       const pv = widgetValue(kind, peak, act.stats, cfg.units)
-      const valStr = v.unit ? `${v.value} ${v.unit}` : v.value
-      const maxStr = (pv.unit ? `${pv.value} ${pv.unit}` : pv.value).replace(/[0-9]/g, '8')
-      ctx.font = `700 ${Math.round(base)}px Inter, system-ui, sans-serif`
-      const valW = ctx.measureText(maxStr).width // reserve for the widest value
-      ctx.font = `600 ${Math.round(base * 0.62)}px Inter, system-ui, sans-serif`
+      // Fixed-width numeric column (≥3 integer digits) so the number grows
+      // leftward and the unit never drifts.
+      const dot = v.value.indexOf('.')
+      const dec = dot >= 0 ? v.value.length - dot - 1 : 0
+      const peakInt = pv.value.split('.')[0].replace('-', '').length
+      const numTpl = '8'.repeat(Math.max(3, peakInt)) + (dec > 0 ? '.' + '8'.repeat(dec) : '')
+      ctx.font = valFont
+      const numColW = ctx.measureText(numTpl).width
+      const unitW = v.unit ? ctx.measureText(' ' + v.unit).width : 0
+      ctx.font = labFont
       const labW = ctx.measureText(v.label.toUpperCase()).width
-      const cw = Math.max(valW, labW) + margin * 0.9
+      const cw = Math.max(numColW + (v.unit ? unitGap + unitW : 0), labW) + padX * 2
       if (x + cw > W - margin) break
-      chip(ctx, x, y, cw, chipH, v.label.toUpperCase(), valStr, base)
+      chipFixed(ctx, x, y, cw, chipH, v.label.toUpperCase(), v.value, v.unit, numColW, padX, unitGap, base)
       x += cw + gap
     }
   }
@@ -399,25 +408,38 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, cx: number, y: nu
   lines.forEach((l, i) => ctx.fillText(l, cx, startY + i * lineH))
 }
 
-function chip(
+function chipFixed(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
   label: string,
-  value: string,
+  num: string,
+  unit: string,
+  numColW: number,
+  padX: number,
+  unitGap: number,
   base: number,
 ) {
   panel(ctx, x, y, w, h)
+  // Label (left-aligned, top).
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
   ctx.fillStyle = 'rgba(255,255,255,0.7)'
   ctx.font = `600 ${Math.round(base * 0.62)}px Inter, system-ui, sans-serif`
-  ctx.fillText(label, x + w * 0.12, y + h * 0.14)
-  ctx.fillStyle = '#fff'
+  ctx.fillText(label, x + padX, y + h * 0.14)
+  // Number right-aligned within its fixed column, unit pinned just after it.
   ctx.font = `700 ${Math.round(base)}px Inter, system-ui, sans-serif`
-  ctx.fillText(value, x + w * 0.12, y + h * 0.42)
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'right'
+  ctx.fillText(num, x + padX + numColW, y + h * 0.42)
+  if (unit) {
+    ctx.textAlign = 'left'
+    ctx.fillStyle = 'rgba(255,255,255,0.82)'
+    ctx.fillText(unit, x + padX + numColW + unitGap, y + h * 0.42)
+  }
+  ctx.textAlign = 'left'
 }
 
 function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
