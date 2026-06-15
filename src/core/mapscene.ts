@@ -24,6 +24,9 @@ export class MapScene {
   private pistaMatched: (string | null)[] = []
   private currentTrailId: string | null = null
   private _currentTrail: { name: string; difficulty: string | null } | null = null
+  // Last-applied values (cfg is the same reactive object as setConfig's arg).
+  private appliedStyle: string
+  private appliedPista: boolean
 
   constructor(
     container: HTMLElement,
@@ -32,6 +35,8 @@ export class MapScene {
     private timeline: Timeline,
   ) {
     this.coords = act.points.map((p) => [p.lon, p.lat] as LngLat)
+    this.appliedStyle = cfg.mapStyleId
+    this.appliedPista = cfg.showPistaTrails
     const tracks = this.buildSmoothTracks()
     this.smoothBearing = tracks.bearing
     this.smoothLng = tracks.lng
@@ -133,11 +138,12 @@ export class MapScene {
   }
 
   setConfig(cfg: RenderConfig) {
-    const prevStyle = this.cfg.mapStyleId
-    const prevPista = this.cfg.showPistaTrails
+    // NB: cfg is the same reactive object as this.cfg, so we track applied values
+    // in dedicated fields (comparing this.cfg.X would always equal cfg.X).
     this.cfg = cfg
     const style = styleById(cfg.mapStyleId)
-    if (cfg.mapStyleId !== prevStyle) {
+    if (cfg.mapStyleId !== this.appliedStyle) {
+      this.appliedStyle = cfg.mapStyleId
       const src = this.map.getSource('base') as maplibregl.RasterTileSource
       src.setTiles([style.url])
     }
@@ -152,7 +158,10 @@ export class MapScene {
     this.map.setPaintProperty('head-glow', 'circle-color', cfg.accentColor)
     this.map.setTerrain(cfg.terrain3d ? { source: 'dem', exaggeration: cfg.terrainExaggeration } : null)
     if (this.map.isStyleLoaded()) this.applyMarkerIcon()
-    if (cfg.showPistaTrails !== prevPista) this.renderPista()
+    if (cfg.showPistaTrails !== this.appliedPista) {
+      this.appliedPista = cfg.showPistaTrails
+      this.renderPista()
+    }
     this.fitCam = null // recompute fit camera (padding/size may have changed)
   }
 
