@@ -1,4 +1,4 @@
-import type { Activity, RenderConfig } from './types'
+import type { Activity, ActivityStats, RenderConfig } from './types'
 import type { Timeline } from './timeline'
 import { sampleAt } from './metrics'
 import { fmtDuration, summaryItems, widgetValue, type LiveSample } from './widgets'
@@ -83,11 +83,16 @@ export function drawOverlay(
     const gap = Math.round(margin * 0.4)
     let x = margin
     const y = bottomY - chipH
+    // Size each chip to its widest possible value (from the activity's maxima),
+    // so chips never resize/jump as the digit count changes mid-animation.
+    const peak = peakSample(act.stats, timeline.realDuration)
     for (const kind of chips) {
       const v = widgetValue(kind, live, act.stats, cfg.units)
+      const pv = widgetValue(kind, peak, act.stats, cfg.units)
       const valStr = v.unit ? `${v.value} ${v.unit}` : v.value
+      const maxStr = (pv.unit ? `${pv.value} ${pv.unit}` : pv.value).replace(/[0-9]/g, '8')
       ctx.font = `700 ${Math.round(base)}px Inter, system-ui, sans-serif`
-      const valW = ctx.measureText(valStr).width
+      const valW = ctx.measureText(maxStr).width // reserve for the widest value
       ctx.font = `600 ${Math.round(base * 0.62)}px Inter, system-ui, sans-serif`
       const labW = ctx.measureText(v.label.toUpperCase()).width
       const cw = Math.max(valW, labW) + margin * 0.9
@@ -128,6 +133,22 @@ export function drawOverlay(
   ctx.textAlign = 'left'
 
   drawCredit(ctx, base)
+}
+
+/** A LiveSample carrying each metric's widest value, for stable chip sizing. */
+function peakSample(s: ActivityStats, realDuration: number): LiveSample {
+  return {
+    speed: s.maxSpeed,
+    dist: s.totalDistance,
+    ele: s.maxEle ?? 0,
+    gain: Math.max(s.totalGain, s.totalLoss),
+    grade: -0.999,
+    hr: s.maxHr ?? 199,
+    cad: 199,
+    power: s.maxPower ?? 999,
+    temp: -19,
+    t: realDuration,
+  }
 }
 
 /** Pill naming the Pista trail the rider is on, top-centre. */
