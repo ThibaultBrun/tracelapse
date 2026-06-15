@@ -2,9 +2,9 @@ import { reactive } from 'vue'
 import { loadGpxText, state } from './store'
 import { accessToken } from './supa'
 
-// All Strava ops go through the always-on VPS service (CORS-open, has the
-// account/webhook/notify logic). The SPA itself is hosted on Cloudflare Pages.
-const API = 'https://tracelapse.tbrun.dev/api'
+// Same-origin /api → Cloudflare Pages Function → proxied to the VPS service.
+// Keeps the Strava callback on the brand domain (tracelapse.pista.bike).
+const API = `${location.origin}/api`
 
 export interface StravaActivity {
   id: number
