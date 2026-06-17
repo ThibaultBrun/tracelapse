@@ -16,6 +16,7 @@ import {
   fetchAccountActivities,
   loadActivityById,
   loadStravaActivity,
+  logUsage,
   refreshAccount,
   strava,
   type StravaActivity,
@@ -133,6 +134,7 @@ watch(
 
 onMounted(() => {
   consumeStravaRedirect()
+  logUsage('visit')
 })
 </script>
 

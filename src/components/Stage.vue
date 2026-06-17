@@ -6,6 +6,7 @@ import { Timeline, totalDuration } from '../core/timeline'
 import { drawOverlay, type OverlayCtx } from '../core/overlay'
 import { exportVideo, type ExportProgress } from '../core/exporter'
 import { fmtDuration } from '../core/widgets'
+import { logUsage } from '../strava'
 
 const viewport = ref<HTMLDivElement | null>(null)
 const surface = ref<HTMLDivElement | null>(null)
@@ -209,6 +210,7 @@ async function doExport(share = false) {
     if (share && (navigator as Navigator).canShare?.({ files: [file] })) {
       try {
         await (navigator as Navigator).share({ files: [file], title: state.render.title || 'Tracelapse' })
+        logUsage('shared')
         exportMsg.value = 'Shared ✓'
       } catch {
         exportMsg.value = '' // user dismissed the share sheet
@@ -222,6 +224,7 @@ async function doExport(share = false) {
       setTimeout(() => URL.revokeObjectURL(url), 10000)
       exportMsg.value = share ? `Saved .${ext} (sharing not available here)` : `Done — saved .${ext}`
     }
+    logUsage('video_exported')
   } catch (e) {
     exportMsg.value = (e as Error).message === 'cancelled' ? 'Cancelled' : `Error: ${(e as Error).message}`
   } finally {

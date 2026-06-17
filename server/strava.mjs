@@ -64,6 +64,22 @@ const bearer = (req) => {
 }
 const unsubSig = (athleteId) => createHmac('sha256', STRAVA_CLIENT_SECRET).update(String(athleteId)).digest('hex').slice(0, 24)
 
+const EVENTS = new Set(['visit', 'connect_anon', 'connect_link', 'activity_loaded', 'video_exported', 'shared'])
+/** Fire-and-forget usage log into public.tracelapse_events (server-side count). */
+function logEvent(event, athleteId = null) {
+  if (!EVENTS.has(event)) return
+  void fetch(`${SUPABASE_URL}/rest/v1/tracelapse_events`, {
+    method: 'POST',
+    headers: { ...svcHeaders, Prefer: 'return=minimal' },
+    body: JSON.stringify({ event, athlete_id: athleteId }),
+  }).catch(() => {})
+}
+async function countEvent(filter) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${filter}`, { headers: { ...svcHeaders, Prefer: 'count=exact' }, method: 'HEAD' })
+  const cr = r.headers.get('content-range') || '*/0'
+  return Number(cr.split('/')[1] || 0)
+}
+
 /** Validate a Supabase JWT and return { id, email } or null. */
 async function supaUser(jwt) {
   if (!jwt) return null
@@ -152,6 +168,7 @@ const server = createServer(async (req, res) => {
       if (!data.access_token) return redirect(res, `${APP_ORIGIN}/#strava_error=exchange_failed`)
       const athlete = data.athlete || {}
       const name = `${athlete.firstname || ''} ${athlete.lastname || ''}`.trim()
+      logEvent(state.startsWith('link:') ? 'connect_link' : 'connect_anon', athlete.id ?? null)
 
       if (state.startsWith('link:')) {
         const user = await supaUser(state.slice(5))
@@ -189,7 +206,31 @@ const server = createServer(async (req, res) => {
       const token = bearer(req)
       const id = url.searchParams.get('id')
       if (!token || !id) return sendJson(res, 400, { error: 'token + id required' })
+      logEvent('activity_loaded')
       return sendText(res, 200, await activityGpx(token, id), { 'Content-Type': 'application/gpx+xml' })
+    }
+
+    // Usage event from the client (whitelisted names only).
+    if (path === '/ev') {
+      logEvent(url.searchParams.get('name') || '')
+      return sendText(res, 204, '')
+    }
+
+    // Aggregate usage counts (no PII).
+    if (path === '/stats') {
+      const ev = (n) => countEvent(`tracelapse_events?event=eq.${n}`)
+      const [visit, ca, cl, loaded, exported, shared, linked] = await Promise.all([
+        ev('visit'), ev('connect_anon'), ev('connect_link'), ev('activity_loaded'),
+        ev('video_exported'), ev('shared'), countEvent('tracelapse_strava?select=user_id'),
+      ])
+      return sendJson(res, 200, {
+        visits: visit,
+        strava_connects: ca + cl,
+        linked_accounts: linked,
+        activities_loaded: loaded,
+        videos_exported: exported,
+        shares: shared,
+      })
     }
 
     // --- Account flows (client sends the Supabase JWT) ---
@@ -212,6 +253,7 @@ const server = createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'not logged in' })
       const row = await getRow(`user_id=eq.${user.id}`)
       if (!row || !id) return sendJson(res, 400, { error: 'not linked / id' })
+      logEvent('activity_loaded', row.athlete_id ?? null)
       return sendText(res, 200, await activityGpx(await validAccess(row), id), { 'Content-Type': 'application/gpx+xml' })
     }
     if (path === '/me/disconnect') {

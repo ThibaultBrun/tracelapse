@@ -6,6 +6,11 @@ import { accessToken } from './supa'
 // Keeps the Strava callback on the brand domain (tracelapse.pista.bike).
 const API = `${location.origin}/api`
 
+/** Fire-and-forget usage event (server-side count in tracelapse_events). */
+export function logUsage(name: string) {
+  void fetch(`${API}/ev?name=${encodeURIComponent(name)}`).catch(() => {})
+}
+
 export interface StravaActivity {
   id: number
   name: string
