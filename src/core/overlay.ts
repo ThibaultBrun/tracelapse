@@ -129,6 +129,7 @@ export function drawOverlay(
 
   drawTopSpeed(ctx, o, idx, base)
   drawTrailName(ctx, o, base)
+  drawWaveBadge(ctx, o, idx, base)
 
   // Attribution (MapLibre's own is hidden in export; bake ours in).
   ctx.font = `${Math.round(base * 0.5)}px Inter, system-ui, sans-serif`
@@ -201,6 +202,45 @@ function drawTrailName(ctx: CanvasRenderingContext2D, o: OverlayCtx, base: numbe
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.fillText(label, x + padX + dotR * 2 + base * 0.5, y + h / 2 + base * 0.04)
+  ctx.restore()
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+}
+
+/** "🌊 Wave n/N" badge while riding a wave (surf), top-centre under the title. */
+function drawWaveBadge(ctx: CanvasRenderingContext2D, o: OverlayCtx, idx: number, base: number) {
+  const wa = o.act.waveAt
+  if (!wa || !o.act.stats.waveCount) return
+  const w = wa[Math.max(0, Math.min(wa.length - 1, Math.round(idx)))]
+  if (!w) return
+  const label = `🌊 Wave ${w}/${o.act.stats.waveCount}`
+  const W = ctx.canvas.width
+  const cx = W / 2
+  const y = ctx.canvas.height * 0.085
+  ctx.save()
+  ctx.font = `800 ${Math.round(base * 0.85)}px Inter, system-ui, sans-serif`
+  const tw = ctx.measureText(label).width
+  const padX = base * 0.9
+  const h = base * 1.8
+  const pw = tw + padX * 2
+  const x = cx - pw / 2
+  const r = h / 2
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + pw, y, x + pw, y + h, r)
+  ctx.arcTo(x + pw, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + pw, y, r)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(20,17,12,0.78)'
+  ctx.shadowColor = o.cfg.accentColor
+  ctx.shadowBlur = base * 0.8
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, cx, y + h / 2 + base * 0.04)
   ctx.restore()
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'

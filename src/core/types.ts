@@ -56,6 +56,13 @@ export interface ActivityStats {
   hasPower: boolean
   hasTemp: boolean
   startTime: number | null
+  /** Surf: detected waves ridden (0 for non-surf activities). */
+  waveCount: number
+  /** Surf: longest wave distance (m). */
+  longestWaveM: number
+  /** Surf: top speed reached while riding a wave (m/s). */
+  waveMaxSpeed: number
+  isSurf: boolean
 }
 
 export interface Activity {
@@ -66,6 +73,8 @@ export interface Activity {
   stats: ActivityStats
   /** Bounding box [west, south, east, north]. */
   bbox: [number, number, number, number]
+  /** Surf: per-point wave number the rider is on (0 = paddling/waiting). */
+  waveAt: Int16Array
 }
 
 export type WidgetKind =

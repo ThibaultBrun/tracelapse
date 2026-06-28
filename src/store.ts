@@ -139,6 +139,12 @@ export async function loadDemo() {
 
 function autoSummary(act: Activity): string[] {
   const s = act.stats
+  // Surf sessions lead with the wave stats.
+  if (s.isSurf && s.waveCount > 0) {
+    const k = ['waves', 'longestWave', 'surfSpeed', 'distance']
+    if (s.hasTime) k.push('duration')
+    return k
+  }
   const keys = ['distance']
   if (s.hasTime) keys.push('duration')
   if (s.hasEle) keys.push('gain')

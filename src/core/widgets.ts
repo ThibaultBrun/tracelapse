@@ -125,6 +125,7 @@ function fmtPace(secPerUnit: number): string {
 export type SummaryKey =
   | 'distance' | 'duration' | 'moving' | 'avgSpeed' | 'maxSpeed' | 'pace'
   | 'avgHr' | 'maxHr' | 'avgPower' | 'maxPower' | 'gain' | 'loss' | 'maxEle' | 'date'
+  | 'waves' | 'longestWave' | 'surfSpeed'
 
 export interface SummaryMeta {
   key: SummaryKey
@@ -156,6 +157,12 @@ export const SUMMARY_CATALOG: SummaryMeta[] = [
     value: (s, u) => s.maxEle == null ? '–' : (u === 'imperial' ? `${Math.round(s.maxEle * 3.28084)} ft` : `${Math.round(s.maxEle)} m`) },
   { key: 'date', label: 'Date', available: (s) => s.startTime != null,
     value: (s) => (s.startTime ? new Date(s.startTime).toLocaleDateString() : '–') },
+  // Surf
+  { key: 'waves', label: 'Waves', available: (s) => s.waveCount > 0, value: (s) => `${s.waveCount}` },
+  { key: 'longestWave', label: 'Longest wave', available: (s) => s.longestWaveM > 0,
+    value: (s, u) => u === 'imperial' ? `${Math.round(s.longestWaveM * 3.28084)} ft` : `${Math.round(s.longestWaveM)} m` },
+  { key: 'surfSpeed', label: 'Wave top speed', available: (s) => s.waveMaxSpeed > 0,
+    value: (s, u) => u === 'imperial' ? `${(s.waveMaxSpeed * 2.23694).toFixed(1)} mph` : `${(s.waveMaxSpeed * 3.6).toFixed(1)} km/h` },
 ]
 
 export function summaryItems(keys: string[], stats: ActivityStats, units: 'metric' | 'imperial'): { label: string; value: string }[] {

@@ -88,7 +88,74 @@ export function buildActivity(
 
   const stats = aggregate(points, derived, tSec, hasTime, startTime, totalGain, totalLoss)
   const bbox = boundingBox(points)
-  return { name, sport, points, derived, stats, bbox }
+
+  // Surf: detect waves ridden (speed bursts) and surface the stats.
+  const isSurf = /surf/i.test(sport || '')
+  const { waveAt, waveCount, longestWaveM, waveMaxSpeed } = detectWaves(derived, isSurf)
+  stats.isSurf = isSurf
+  stats.waveCount = waveCount
+  stats.longestWaveM = longestWaveM
+  stats.waveMaxSpeed = waveMaxSpeed
+
+  return { name, sport, points, derived, stats, bbox, waveAt }
+}
+
+/**
+ * A wave = a ride where speed stays above ~10 km/h for a couple of seconds and
+ * a few metres (between slow paddling/waiting). Short dips are bridged so one
+ * wave isn't counted twice. Thresholds are conservative; tune on real data.
+ */
+function detectWaves(
+  derived: DerivedSample[],
+  isSurf: boolean,
+): { waveAt: Int16Array; waveCount: number; longestWaveM: number; waveMaxSpeed: number } {
+  const n = derived.length
+  const waveAt = new Int16Array(n)
+  if (!isSurf) return { waveAt, waveCount: 0, longestWaveM: 0, waveMaxSpeed: 0 }
+
+  const ON = 2.8 // m/s (~10 km/h)
+  const MIN_DUR = 2 // s
+  const MIN_DIST = 15 // m
+  const MERGE_GAP = 3 // s — bridge brief dips
+  const rides: [number, number][] = []
+
+  let i = 0
+  while (i < n) {
+    if (derived[i].speed <= ON) {
+      i++
+      continue
+    }
+    let j = i
+    while (j + 1 < n) {
+      if (derived[j + 1].speed > ON) {
+        j++
+        continue
+      }
+      // bridge a short below-threshold dip if speed recovers within MERGE_GAP
+      let k = j + 1
+      while (k < n && derived[k].t - derived[j].t <= MERGE_GAP && derived[k].speed <= ON) k++
+      if (k < n && derived[k].speed > ON && derived[k].t - derived[j].t <= MERGE_GAP) {
+        j = k
+        continue
+      }
+      break
+    }
+    const dur = derived[j].t - derived[i].t
+    const dist = derived[j].dist - derived[i].dist
+    if (dur >= MIN_DUR && dist >= MIN_DIST) rides.push([i, j])
+    i = j + 1
+  }
+
+  let longest = 0
+  let maxSpeed = 0
+  rides.forEach((r, idx) => {
+    longest = Math.max(longest, derived[r[1]].dist - derived[r[0]].dist)
+    for (let p = r[0]; p <= r[1]; p++) {
+      waveAt[p] = idx + 1
+      if (derived[p].speed > maxSpeed) maxSpeed = derived[p].speed
+    }
+  })
+  return { waveAt, waveCount: rides.length, longestWaveM: longest, waveMaxSpeed: maxSpeed }
 }
 
 function movingAverage(arr: Float64Array, win: number): Float64Array {
@@ -187,6 +254,10 @@ function aggregate(
     hasPower: pwrCnt > 0,
     hasTemp: points.some((p) => p.temp != null),
     startTime,
+    isSurf: false,
+    waveCount: 0,
+    longestWaveM: 0,
+    waveMaxSpeed: 0,
   }
 }
 
